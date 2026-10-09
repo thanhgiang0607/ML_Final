@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+.DS_Store
+.omc/
+# Dữ liệu lớn: tải lại theo link trong Proposal
+data/isic2018/
+# Dữ liệu giả: sinh lại bằng data/make_synthetic.py
+data/synthetic/
