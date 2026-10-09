@@ -25,6 +25,8 @@ ML_Final/
 ├── results/e1/                # Kết quả E1 (csv + hình)
 ├── data/
 │   ├── make_synthetic.py      # Sinh dữ liệu giả
+│   ├── download_isic.py       # Tải ISIC 2018 Task 1 + tạo file chia tập
+│   ├── splits/                # ID ảnh tập tune (100) / test (200) — commit để cả nhóm dùng chung
 │   ├── synthetic/             # 5 bộ × 10 seed (sinh ra, không cần commit)
 │   └── isic2018/              # Ảnh da ISIC 2018 Task 1 (tải về, không commit)
 └── requirements.txt
@@ -37,6 +39,7 @@ ML_Final/
 ```bash
 pip install -r requirements.txt
 python3 data/make_synthetic.py             # sinh dữ liệu giả
+python3 data/download_isic.py              # tải ảnh da ISIC (~2,5 GB; thêm --no-test-images để chỉ tải ~240 MB)
 python3 -m pytest tests                    # chạy unit test
 python3 experiments/e1_compare_sklearn.py  # E1 (thêm --seeds 2 để chạy nhanh)
 ```
