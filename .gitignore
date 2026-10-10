@@ -6,12 +6,6 @@ __pycache__/
 data/isic2018/
 # Dữ liệu giả: sinh lại bằng data/make_synthetic.py
 data/synthetic/
-conftest.py
-meanshift/*
-!meanshift/.gitkeep
-experiments/*
-!experiments/.gitkeep
-tests/*
-!tests/.gitkeep
+# Kết quả thực nghiệm: sinh lại bằng experiments/*.py
 results/*
 !results/.gitkeep

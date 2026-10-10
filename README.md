@@ -4,7 +4,7 @@
 
 **Ý tưởng:** Tự cài Mean-Shift từ đầu, chạy đối chiếu với `sklearn` xem giống hay khác, đo tốc độ và độ nhạy theo bandwidth `h`, rồi đem đi tách vùng tổn thương da và chấm điểm bằng Dice/IoU so với mask của chuyên gia.
 
-Chi tiết đầy đủ: `DeCuong_DoAn_MeanShift.docx` · Bản tóm tắt cho nhóm: `Proposal_MeanShift.docx`
+Chi tiết đầy đủ: `DeCuong_DoAn_MeanShift.docx` · Bản tóm tắt cho nhóm: `Proposal_MeanShift.docx` · **Phân công & quy trình Git: [`PHAN_CONG.md`](PHAN_CONG.md)**
 
 ---
 
@@ -12,23 +12,26 @@ Chi tiết đầy đủ: `DeCuong_DoAn_MeanShift.docx` · Bản tóm tắt cho n
 
 ```
 ML_Final/
-├── meanshift/                 # Package tự cài (chỉ dùng NumPy/SciPy)
-│   ├── core.py                #   MeanShiftCustom: fit / predict / fit_predict
-│   ├── base.py                #   Lớp cơ sở: get_params, set_params, kiểm tra input
-│   ├── kernels.py             #   FlatKernel, GaussianKernel
-│   ├── neighbors.py           #   BruteForceSearch, KDTreeSearch
-│   ├── bandwidth.py           #   estimate_bandwidth
-│   └── seeding.py             #   get_bin_seeds (bin seeding)
+├── meanshift/                 # Package tự cài (chỉ dùng NumPy/SciPy) — đang là khung stub
+│   ├── core.py                #   MeanShiftCustom: fit / predict / fit_predict      (A)
+│   ├── base.py                #   Lớp cơ sở: get_params, set_params (đã cài sẵn)
+│   ├── kernels.py             #   FlatKernel, GaussianKernel                         (B)
+│   ├── neighbors.py           #   BruteForceSearch, KDTreeSearch                     (C)
+│   ├── bandwidth.py           #   estimate_bandwidth                                 (D)
+│   └── seeding.py             #   get_bin_seeds (bin seeding)                        (D)
 ├── tests/                     # Unit test (pytest)
-├── experiments/
-│   └── e1_compare_sklearn.py  # E1: đối chiếu với sklearn
-├── results/e1/                # Kết quả E1 (csv + hình)
+│   ├── test_interface.py      #   Kiểm tra giao diện đã chốt — luôn phải pass
+│   └── test_<module>.py       #   Test của từng file trong meanshift/
+├── experiments/               # Script thực nghiệm E1–E6
+├── results/                   # Kết quả thực nghiệm (sinh ra, không commit)
 ├── data/
 │   ├── make_synthetic.py      # Sinh dữ liệu giả
 │   ├── download_isic.py       # Tải ISIC 2018 Task 1 + tạo file chia tập
 │   ├── splits/                # ID ảnh tập tune (100) / test (200) — commit để cả nhóm dùng chung
 │   ├── synthetic/             # 5 bộ × 10 seed (sinh ra, không cần commit)
 │   └── isic2018/              # Ảnh da ISIC 2018 Task 1 (tải về, không commit)
+├── PHAN_CONG.md               # Phân công, quy trình Git, tiến độ
+├── pytest.ini
 └── requirements.txt
 ```
 
@@ -40,7 +43,7 @@ ML_Final/
 pip install -r requirements.txt
 python3 data/make_synthetic.py             # sinh dữ liệu giả
 python3 data/download_isic.py              # tải ảnh da ISIC (~2,5 GB; thêm --no-test-images để chỉ tải ~240 MB)
-python3 -m pytest tests                    # chạy unit test
+python3 -m pytest                          # chạy unit test (phần chưa code hiện SKIPPED)
 python3 experiments/e1_compare_sklearn.py  # E1 (thêm --seeds 2 để chạy nhanh)
 ```
 
