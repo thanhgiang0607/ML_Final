@@ -75,27 +75,97 @@ Kết quả lưu vào `results/<tên thực nghiệm>/` (thư mục này không 
 
 ---
 
-## Quy trình Git cho mỗi người
+## Quy trình làm việc với Git (từ đầu đến cuối)
+
+### Lần đầu tiên (mỗi người làm 1 lần)
 
 ```bash
-# Lần đầu
 git clone https://github.com/thanhgiang0607/ML_Final.git
 cd ML_Final
 pip install -r requirements.txt
 python3 data/make_synthetic.py           # sinh dữ liệu giả
 python3 data/download_isic.py            # chỉ người làm E4/E5/E6 cần
-
-# Mỗi lần bắt đầu việc
-git checkout main && git pull
-git checkout -b <tên-branch>             # ví dụ: oop-kernels
-
-# Code xong
-python3 -m pytest                        # phải không có FAILED
-git add <các file mình sửa>
-git commit -m "Mô tả ngắn việc đã làm"
-git push -u origin <tên-branch>
-# -> Lên GitHub bấm "Compare & pull request", nhờ 1 người review
+python3 -m pytest                        # kiểm tra môi trường: không có FAILED
 ```
+
+### Mỗi phần việc — ví dụ B làm `kernels.py`
+
+#### Phía thành viên
+
+**1. Lấy code mới nhất, tạo branch riêng**
+```bash
+git checkout main
+git pull
+git checkout -b oop-kernels
+```
+
+**2. Code và test xen kẽ**
+- Viết phần ruột ở các chỗ `# TODO(B)` trong `meanshift/kernels.py`.
+- Viết thêm test vào `tests/test_kernels.py`.
+- Chạy liên tục trong lúc code: `python3 -m pytest tests/test_kernels.py` — sai thì sửa ngay.
+
+**3. Code xong → kiểm tra lần cuối trên máy**
+```bash
+git pull origin main          # gộp những gì người khác đã merge vào main
+python3 -m pytest             # toàn bộ test: không có FAILED
+```
+Nếu `git pull` báo **conflict**: mở file bị xung đột, giữ phần đúng, rồi `git add` + `git commit`.
+
+**4. Commit và push lên branch của mình**
+```bash
+git add meanshift/kernels.py tests/test_kernels.py
+git commit -m "Cài FlatKernel, GaussianKernel và test"
+git push -u origin oop-kernels
+```
+
+**5. Tạo Pull Request trên GitHub**
+- Vào repo → bấm **Compare & pull request**.
+- Tiêu đề: *"B – kernels.py"*. Mô tả: đã làm gì, kết quả pytest trên máy (ví dụ *9 passed, 22 skipped*).
+- **Reviewers**: chọn trưởng nhóm (hoặc 1 thành viên khác).
+- Bấm **Create pull request**.
+
+**6. Đợi GitHub tự chạy test (~1–2 phút)**
+- ✅ → chờ review.
+- ❌ → bấm **Details** xem test nào sai → sửa trên máy → `git add` / `git commit` / `git push` lên **cùng branch**. PR tự cập nhật, GitHub chạy lại test — **không tạo PR mới**.
+
+#### Phía người review (trưởng nhóm)
+
+**7. Review**
+- Xem dấu ✅. Bấm *Details* kiểm tra test của phần vừa code đã **passed** (không còn **skipped**).
+- Mở tab **Files changed** đọc code.
+- Cần sửa → comment vào dòng đó, chọn **Request changes** → thành viên sửa, push lại (quay lại bước 6).
+- Ổn → **Approve**.
+
+**8. Merge**
+- Bấm **Merge pull request** → **Confirm**.
+- Bấm **Delete branch** để xoá branch trên GitHub.
+- Đánh dấu ☑ ở mục *Tiến độ* cuối file này.
+
+#### Sau khi merge
+
+**9. Thành viên dọn dẹp, chuẩn bị việc tiếp theo**
+```bash
+git checkout main
+git pull                       # main giờ đã có code vừa merge
+git branch -d oop-kernels      # xoá branch cũ trên máy
+```
+Việc mới → quay lại bước 1 với branch mới (ví dụ `e6-ablation`).
+
+**10. Các thành viên khác** `git pull` để nhận code mới (đang ở branch riêng thì `git pull origin main`).
+
+### Tóm tắt
+
+```
+Thành viên:  tạo branch → code + test → pytest trên máy → push → tạo PR
+                                                                    ↓
+GitHub:      tự chạy test → ✅ / ❌   (❌: sửa, push lại cùng branch)
+                                                                    ↓
+Review:      đọc code → Approve → Merge → xoá branch
+                                                                    ↓
+Cả nhóm:     git pull để nhận code mới
+```
+
+**Lưu ý:** ✅ chỉ có nghĩa là *các test hiện có đều pass*, không có nghĩa code chắc chắn đúng — người review vẫn phải đọc code.
 
 ## Quy tắc
 
