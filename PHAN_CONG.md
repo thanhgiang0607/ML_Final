@@ -100,7 +100,7 @@ git push -u origin <tên-branch>
 ## Quy tắc
 
 1. **Không push thẳng lên `main`.** Mọi thay đổi đi qua Pull Request, có ít nhất 1 người khác review.
-2. **Chỉ merge khi `python3 -m pytest` không có test FAILED.** Test của phần chưa code sẽ hiện `SKIPPED (Chưa cài)` — bình thường.
+2. **Chỉ merge khi test pass.** GitHub tự chạy `pytest` cho mỗi PR (GitHub Actions) — xem dấu ✅/❌ ở cuối trang PR, ❌ thì bấm *Details* để xem test nào sai. Nên tự chạy `python3 -m pytest` trên máy trước khi push cho nhanh. Test của phần chưa code hiện `SKIPPED (Chưa cài)` — bình thường.
 3. **Code trong `meanshift/` phải có test** ở `tests/test_<tên file>.py`. Đã có vài test mẫu, mỗi người bổ sung thêm. Script trong `experiments/` không bắt buộc có test.
 4. **Chỉ sửa file của mình.** Cần sửa file người khác → nhắn người đó hoặc nêu trong PR.
 5. **Chỉ dùng NumPy/SciPy trong `meanshift/`.** sklearn chỉ được dùng trong `tests/` và `experiments/` để đối chiếu.

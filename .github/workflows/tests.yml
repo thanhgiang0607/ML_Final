@@ -1,0 +1,26 @@
+# Tự chạy unit test mỗi khi có Pull Request vào main hoặc push lên main.
+# Kết quả hiện trong tab "Checks" của PR (✅ pass / ❌ fail).
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Cài thư viện
+        run: pip install -r requirements.txt
+
+      - name: Chạy pytest
+        run: python -m pytest -rs
