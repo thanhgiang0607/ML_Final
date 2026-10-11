@@ -43,11 +43,11 @@ class FlatKernel(Kernel):
 
     def support(self, bandwidth):
         # TODO(B): trả về h
-        raise NotImplementedError
+        return bandwidth
 
     def weights(self, sq_dist, bandwidth):
         # TODO(B): mảng toàn số 1, cùng kích thước sq_dist
-        raise NotImplementedError
+        return np.ones_like(np.asarray(sq_dist, dtype=np.float64))
 
 
 class GaussianKernel(Kernel):
@@ -57,15 +57,18 @@ class GaussianKernel(Kernel):
 
     def __init__(self, cutoff=3.0):
         # TODO(B): kiểm tra cutoff > 0 (ValueError nếu sai), lưu vào self.cutoff
-        raise NotImplementedError
+        if not cutoff > 0:
+            raise ValueError(f"cutoff phải > 0, nhận được {cutoff!r}.")
+        self.cutoff = cutoff
 
     def support(self, bandwidth):
         # TODO(B): trả về cutoff * h
-        raise NotImplementedError
+        return self.cutoff * bandwidth
 
     def weights(self, sq_dist, bandwidth):
         # TODO(B): exp(-0.5 * sq_dist / h^2)
-        raise NotImplementedError
+        sq_dist = np.asarray(sq_dist, dtype=np.float64)
+        return np.exp(-0.5 * sq_dist / bandwidth**2)
 
 
 def make_kernel(kernel, gaussian_cutoff=3.0):
@@ -73,5 +76,10 @@ def make_kernel(kernel, gaussian_cutoff=3.0):
 
     Tên khác -> ValueError.
     """
-    # TODO(B)
-    raise NotImplementedError
+    if isinstance(kernel, Kernel):
+        return kernel
+    if kernel == "flat":
+        return FlatKernel()
+    if kernel == "gaussian":
+        return GaussianKernel(cutoff=gaussian_cutoff)
+    raise ValueError(f"Kernel không hợp lệ: {kernel!r}. Chọn 'flat' hoặc 'gaussian'.")
