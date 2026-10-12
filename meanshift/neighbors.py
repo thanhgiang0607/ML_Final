@@ -55,7 +55,8 @@ class BruteForceSearch(NeighborSearch):
             d2 = p_sq[:, None] - 2.0 * (chunk @ X.T) + x_sq[None, :]
             np.maximum(d2, 0.0, out=d2)  # loại sai số âm do làm tròn
             for i in range(len(chunk)):
-                idx = np.nonzero(d2[i] <= r2)[0]
+                # Nới ngưỡng một chút để không bỏ sót điểm sát biên
+                idx = np.nonzero(d2[i] <= r2 * (1 + 1e-9) + 1e-12)[0]
                 # Tính lại chính xác cho các điểm được chọn để tránh sai số
                 # của công thức khai triển, nhất là với điểm nằm sát biên.
                 diff = X[idx] - chunk[i]
@@ -79,13 +80,15 @@ class KDTreeSearch(NeighborSearch):
     def query_radius(self, points, r):
         X = np.asarray(self.X_, dtype=float)
         P = np.atleast_2d(np.asarray(points, dtype=float))
-        neighbors = self.tree_.query_ball_point(P, r)
+        r2 = float(r) ** 2
+        neighbors = self.tree_.query_ball_point(P, r * (1 + 1e-9))
         result = []
         for i, ids in enumerate(neighbors):
-            idx = np.asarray(ids, dtype=np.intp)
+            idx = np.sort(np.asarray(ids, dtype=np.intp))
             diff = X[idx] - P[i]
             sq = np.einsum("ij,ij->i", diff, diff)
-            result.append((idx, sq))
+            keep = sq <= r * r
+            result.append((idx[keep], sq[keep]))
         return result
 
 
@@ -100,4 +103,4 @@ def make_neighbor_search(name):
         return BruteForceSearch()
     if name == "kdtree":
         return KDTreeSearch()
-    raise ValueError(f"Unknown neighbor search: {name!r}")
+    raise ValueError(f"Tên bộ tìm láng giềng không hợp lệ: {name!r} (chỉ chấp nhận 'brute' hoặc 'kdtree')")

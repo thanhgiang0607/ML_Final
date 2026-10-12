@@ -4,6 +4,7 @@
 """
 import numpy as np
 import pytest
+from numpy.testing import assert_allclose, assert_array_equal
 
 from meanshift.neighbors import BruteForceSearch, KDTreeSearch, make_neighbor_search
 
@@ -41,3 +42,60 @@ def test_make_neighbor_search():
     assert isinstance(make_neighbor_search("kdtree"), KDTreeSearch)
     with pytest.raises(ValueError):
         make_neighbor_search("abc")
+# ---------------------------------------------------------------------------
+# Test bổ sung
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("search_cls", [BruteForceSearch, KDTreeSearch])
+def test_diem_tren_bien_voi_r_bang_dung_khoang_cach(search_cls):
+    """r = đúng khoảng cách tới một điểm -> điểm đó phải nằm trong kết quả."""
+    # Dùng tam giác 3-4-5 để khoảng cách tính ra chính xác (không có sai số làm tròn)
+    X = np.array([[0.0, 0.0], [3.0, 4.0], [6.0, 8.0], [10.0, 0.0]])
+    q = np.array([[0.0, 0.0]])
+
+    r = float(np.linalg.norm(X[1] - q[0]))  # đúng 5.0
+    assert r == 5.0
+
+    (idx, sq), = search_cls().fit(X).query_radius(q, r)
+    assert 1 in idx.tolist()                 # điểm nằm đúng trên biên được tính vào
+    assert set(idx.tolist()) == {0, 1}       # điểm cách 10 thì không
+    assert_allclose(sq[np.argsort(idx)], [0.0, 25.0])
+
+    # Giảm r đi một chút thì điểm biên phải bị loại
+    (idx2, _), = search_cls().fit(X).query_radius(q, r - 1e-6)
+    assert set(idx2.tolist()) == {0}
+
+
+@pytest.mark.parametrize("chunk_size", [1, 7, 512])
+@pytest.mark.parametrize("r", [0.1, 0.4, 0.8, 1.5])
+def test_brute_va_kdtree_khop_idx_va_sq_dist(r, chunk_size):
+    """Trên dữ liệu ngẫu nhiên, hai bản cho cùng idx (cùng thứ tự) và sq_dist."""
+    rng = np.random.RandomState(42)
+    X = rng.randn(400, 3)
+    Q = rng.randn(50, 3)  # 50 không chia hết cho 7 -> kiểm tra lô cuối bị lẻ
+
+    brute = BruteForceSearch(chunk_size=chunk_size).fit(X).query_radius(Q, r)
+    kd = KDTreeSearch().fit(X).query_radius(Q, r)
+
+    assert len(brute) == len(kd) == len(Q)
+    for (bi, bs), (ki, ks) in zip(brute, kd):
+        assert_array_equal(bi, ki)
+        assert_allclose(bs, ks, rtol=1e-12, atol=1e-12)
+
+
+def test_chunk_size_nho_cho_cung_ket_qua_voi_chunk_lon():
+    """Chia lô không được làm thay đổi kết quả."""
+    rng = np.random.RandomState(1)
+    X = rng.randn(200, 2)
+    Q = rng.randn(33, 2)
+    nho = BruteForceSearch(chunk_size=4).fit(X).query_radius(Q, 0.6)
+    lon = BruteForceSearch(chunk_size=10_000).fit(X).query_radius(Q, 0.6)
+    for (ai, asq), (bi, bsq) in zip(nho, lon):
+        assert_array_equal(ai, bi)
+        assert_allclose(asq, bsq)
+
+
+@pytest.mark.parametrize("ten_la", ["abc", "", "KDTREE", None])
+def test_ten_la_bao_value_error(ten_la):
+    with pytest.raises(ValueError):
+        make_neighbor_search(ten_la)
