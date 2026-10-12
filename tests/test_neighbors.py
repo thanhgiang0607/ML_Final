@@ -97,3 +97,75 @@ def test_kha_nang_phan_chia_lo_tren_cung_idx_va_sq_dist():
 def test_ten_la_bao_value_error(ten_la):
     with pytest.raises(ValueError):
         make_neighbor_search(ten_la)
+
+def test_diem_trung_toa_do():
+    """Các điểm trùng tọa độ phải được trả về đầy đủ."""
+    X = np.array([
+        [0.0, 0.0],  # index 0
+        [1.0, 1.0],  # index 1
+        [0.0, 0.0],  # index 2: trùng index 0
+        [2.0, 2.0],
+        [1.0, 1.0],  # index 4: trùng index 1
+    ])
+    points = np.array([[0.0, 0.0], [1.0, 1.0]])
+
+    expected = [
+        (np.array([0, 2]), np.array([0.0, 0.0])),
+        (np.array([1, 4]), np.array([0.0, 0.0])),
+    ]
+
+    for search in [
+        BruteForceSearch(chunk_size=1),
+        KDTreeSearch(),
+    ]:
+        search.fit(X)
+        results = search.query_radius(points, r=0.0)
+
+        assert len(results) == len(expected)
+
+        for (idx, sq_dist), (expected_idx, expected_sq) in zip(
+            results, expected
+        ):
+            np.testing.assert_array_equal(idx, expected_idx)
+            assert_allclose(sq_dist, expected_sq, atol=1e-12)
+
+
+def test_ban_kinh_bang_0():
+    """Bán kính bằng 0 chỉ nhận các điểm trùng tọa độ với điểm truy vấn."""
+    X = np.array([
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [0.0, 0.0],  # trùng với điểm truy vấn thứ nhất
+        [2.0, 2.0],
+    ])
+    points = np.array([
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [5.0, 5.0],  # không có điểm trùng
+    ])
+
+    expected_indices = [
+        np.array([0, 2]),
+        np.array([1]),
+        np.array([], dtype=int),
+    ]
+    expected_sq_distances = [
+        np.array([0.0, 0.0]),
+        np.array([0.0]),
+        np.array([]),
+    ]
+
+    for search in [
+        BruteForceSearch(chunk_size=1),
+        KDTreeSearch(),
+    ]:
+        search.fit(X)
+        results = search.query_radius(points, r=0.0)
+
+        assert len(results) == len(points)
+
+        for (idx, sq_dist), expected_idx, expected_sq in zip(
+            results, expected_indices, expected_sq_distances
+        ):
+            np.testing.assert_array_equal(idx, expected_idx)
+            assert_allclose(sq_dist, expected_sq, atol=1e-12)
