@@ -20,7 +20,6 @@ def estimate_bandwidth(X, quantile=0.3, n_samples=None, random_state=0):
 
     Gợi ý: scipy.spatial.cKDTree(X).query(X, k=k)
     """
-    # TODO(D)
     if not 0 <= quantile <= 1:
         raise ValueError(f"quantile phải nằm trong [0, 1], nhận được {quantile!r}")
 
