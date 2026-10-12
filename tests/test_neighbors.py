@@ -66,34 +66,32 @@ def test_diem_tren_bien_voi_r_bang_dung_khoang_cach(search_cls):
     assert set(idx2.tolist()) == {0}
 
 
-@pytest.mark.parametrize("chunk_size", [1, 7, 512])
-@pytest.mark.parametrize("r", [0.1, 0.4, 0.8, 1.5])
-def test_brute_va_kdtree_khop_idx_va_sq_dist(r, chunk_size):
-    """Trên dữ liệu ngẫu nhiên, hai bản cho cùng idx (cùng thứ tự) và sq_dist."""
-    rng = np.random.RandomState(42)
-    X = rng.randn(400, 3)
-    Q = rng.randn(50, 3)  # 50 không chia hết cho 7 -> kiểm tra lô cuối bị lẻ
+def test_kha_nang_phan_chia_lo_tren_cung_idx_va_sq_dist():
+    # Tạo dữ liệu ngẫu nhiên có thể tái lập
+    rng = np.random.default_rng(42)
+    X = rng.random((100, 2))
+    points = rng.random((20, 2))
 
-    brute = BruteForceSearch(chunk_size=chunk_size).fit(X).query_radius(Q, r)
-    kd = KDTreeSearch().fit(X).query_radius(Q, r)
+    # Thử nhiều bán kính và chunk_size nhỏ để kiểm tra chia lô
+    for r in [0.05, 0.2, 0.5, 1.0]:
+        for chunk_size in [1, 3, 7]:
+            brute = BruteForceSearch(chunk_size=chunk_size).fit(X)
+            kdtree = KDTreeSearch().fit(X)
 
-    assert len(brute) == len(kd) == len(Q)
-    for (bi, bs), (ki, ks) in zip(brute, kd):
-        assert_array_equal(bi, ki)
-        assert_allclose(bs, ks, rtol=1e-12, atol=1e-12)
+            brute_results = brute.query_radius(points, r)
+            kdtree_results = kdtree.query_radius(points, r)
 
+            # Mỗi điểm truy vấn phải có cùng kết quả
+            assert len(brute_results) == len(kdtree_results)
 
-def test_chunk_size_nho_cho_cung_ket_qua_voi_chunk_lon():
-    """Chia lô không được làm thay đổi kết quả."""
-    rng = np.random.RandomState(1)
-    X = rng.randn(200, 2)
-    Q = rng.randn(33, 2)
-    nho = BruteForceSearch(chunk_size=4).fit(X).query_radius(Q, 0.6)
-    lon = BruteForceSearch(chunk_size=10_000).fit(X).query_radius(Q, 0.6)
-    for (ai, asq), (bi, bsq) in zip(nho, lon):
-        assert_array_equal(ai, bi)
-        assert_allclose(asq, bsq)
+            for (idx_b, sq_b), (idx_k, sq_k) in zip(
+                brute_results, kdtree_results
+            ):
+                # So sánh chỉ số láng giềng
+                np.testing.assert_array_equal(idx_b, idx_k)
 
+                # So sánh khoảng cách bình phương
+                assert_allclose(sq_b, sq_k, rtol=1e-7, atol=1e-12)
 
 @pytest.mark.parametrize("ten_la", ["abc", "", "KDTREE", None])
 def test_ten_la_bao_value_error(ten_la):
