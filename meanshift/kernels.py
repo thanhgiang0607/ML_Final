@@ -50,7 +50,6 @@ class GaussianKernel(Kernel):
     name = "gaussian"
 
     def __init__(self, cutoff=3.0):
-        # TODO(B): kiểm tra cutoff > 0 (ValueError nếu sai), lưu vào self.cutoff
         if not cutoff > 0:
             raise ValueError(f"cutoff phải > 0, nhận được {cutoff!r}.")
         self.cutoff = cutoff
