@@ -1,7 +1,5 @@
 """MeanShiftCustom: cài đặt Mean-Shift từ đầu (NumPy/SciPy), API giống scikit-learn.
 
-Người phụ trách: A  ·  Test: tests/test_core.py  ·  Branch: oop-core
-
 Luồng xử lý trong fit():
     1. Chọn băng thông h (gọi estimate_bandwidth nếu bandwidth=None).        <- D
     2. Chọn seed: toàn bộ X / get_bin_seeds / seeds người dùng truyền.       <- D
@@ -19,40 +17,44 @@ Với kernel='flat', tol=1e-3, merge_radius=None, kết quả phải GIỐNG
 sklearn.cluster.MeanShift để E1 so sánh được. Nên đọc mã nguồn sklearn:
     python3 -c "import sklearn.cluster._mean_shift as m; print(m.__file__)"
 """
-from .base import BaseClusterer, check_array  # noqa: F401
-from .bandwidth import estimate_bandwidth  # noqa: F401
-from .kernels import make_kernel  # noqa: F401
-from .neighbors import make_neighbor_search  # noqa: F401
-from .seeding import get_bin_seeds  # noqa: F401
+import numpy as np
+from scipy.spatial import cKDTree
+
+from .bandwidth import estimate_bandwidth
+from .base import BaseClusterer, check_array
+from .kernels import make_kernel
+from .neighbors import make_neighbor_search
+from .seeding import get_bin_seeds
 
 
 class MeanShiftCustom(BaseClusterer):
     """Phân cụm Mean-Shift.
 
-    Tham số (KHÔNG đổi tên / thứ tự / giá trị mặc định)
-    ----------------------------------------------------
-    bandwidth : float hoặc None     Băng thông h. None -> estimate_bandwidth(X).
-    kernel : 'flat' | 'gaussian'
-    neighbor_search : 'brute' | 'kdtree'
-    gaussian_cutoff : float         Bán kính cắt (bội số h) cho kernel Gaussian.
-    seeds : ndarray (m, d) hoặc None
+    Tham số
+    -------
+    bandwidth : float hoặc None
+        Băng thông h. None -> estimate_bandwidth(X, quantile=0.3).
+    kernel : {'flat', 'gaussian'}
+    neighbor_search : {'brute', 'kdtree'}
+    gaussian_cutoff : float
+        Bán kính cắt (bội số của h) khi kernel='gaussian'.
+    seeds : array (m, d) hoặc None
     bin_seeding : bool
     min_bin_freq : int
     cluster_all : bool
+        False -> điểm cách tâm gần nhất > h được gán nhãn -1.
     max_iter : int
-    tol : float                     Dừng khi độ dời <= tol·h.
-    merge_radius : float hoặc None  Ngưỡng gộp mode. None -> h.
-    record_trajectories : bool      Lưu quỹ đạo từng seed vào trajectories_.
+    tol : float
+        Dừng khi độ dời <= tol·h.
+    merge_radius : float hoặc None
+        Ngưỡng gộp mode. None -> h.
+    record_trajectories : bool
+        Lưu quỹ đạo của từng seed vào trajectories_.
 
     Thuộc tính sau fit
     ------------------
-    cluster_centers_ : ndarray (k, d)
-    labels_          : ndarray (n,) int
-    intensities_     : ndarray (k,) int
-    bandwidth_       : float
-    n_iter_          : int  (số vòng lặp lớn nhất trong các seed)
-    seed_n_iter_     : ndarray (số seed,)
-    trajectories_    : list[ndarray]  (chỉ khi record_trajectories=True)
+    cluster_centers_, labels_, intensities_, bandwidth_, n_iter_,
+    seed_n_iter_ (số vòng lặp từng seed), trajectories_ (nếu bật).
     """
 
     def __init__(
@@ -83,32 +85,108 @@ class MeanShiftCustom(BaseClusterer):
         self.merge_radius = merge_radius
         self.record_trajectories = record_trajectories
 
+    # ------------------------------------------------------------------ fit
     def fit(self, X, y=None):
-        """Chạy thuật toán (bước 1–5 ở đầu file). Trả về self."""
-        # TODO(A)
-        raise NotImplementedError
+        X = check_array(X)
+        h = self.bandwidth if self.bandwidth is not None else estimate_bandwidth(X)
+        if h <= 0:
+            raise ValueError("bandwidth phải > 0.")
+        self.bandwidth_ = float(h)
+        self._kernel = make_kernel(self.kernel, self.gaussian_cutoff)
+        self._search = make_neighbor_search(self.neighbor_search).fit(X)
+
+        seeds = self._init_seeds(X)
+        modes, intensities, n_iter = self._shift_seeds(X, seeds)
+
+        found = intensities > 0
+        if not found.any():
+            raise ValueError(
+                f"Không có điểm nào trong bán kính h={h:f} quanh các seed. "
+                "Hãy tăng bandwidth hoặc đổi cách chọn seed."
+            )
+        self.seed_n_iter_ = n_iter
+        self.n_iter_ = int(n_iter.max())
+
+        centers, center_intensity = self._merge_modes(modes[found], intensities[found])
+        self.cluster_centers_ = centers
+        self.intensities_ = center_intensity
+        self.labels_ = self._assign_labels(X, centers, self.cluster_all)
+        return self
 
     def predict(self, X):
-        """Gán mỗi điểm của X vào tâm cụm gần nhất. Trả về ndarray (n,) int."""
         self._check_is_fitted()
-        # TODO(A)
-        raise NotImplementedError
+        return self._assign_labels(check_array(X), self.cluster_centers_, cluster_all=True)
 
-    # fit_predict(X) đã có sẵn trong BaseClusterer (= fit(X).labels_)
-
-    # ------------------------------------------------- hàm nội bộ (gợi ý chia nhỏ)
+    # -------------------------------------------------------------- các bước
     def _init_seeds(self, X):
-        """Bước 2. Trả về ndarray (m, d)."""
-        raise NotImplementedError
+        if self.seeds is not None:
+            return check_array(self.seeds)
+        if self.bin_seeding:
+            return np.asarray(get_bin_seeds(X, self.bandwidth_, self.min_bin_freq), dtype=np.float64)
+        return X
 
     def _shift_seeds(self, X, seeds):
-        """Bước 3. Trả về (modes (m, d), intensities (m,), n_iter (m,))."""
-        raise NotImplementedError
+        """Dịch chuyển mọi seed song song (theo lô các seed chưa hội tụ).
+
+        Trả về: vị trí mode, intensity (số điểm trong cửa sổ h ở bước cuối),
+        số vòng lặp của từng seed — cùng quy ước với sklearn.
+        """
+        h = self.bandwidth_
+        stop_thresh = self.tol * h
+        radius = self._kernel.support(h)
+        h_sq = h * h
+
+        means = seeds.astype(np.float64, copy=True)
+        intensities = np.zeros(len(means), dtype=np.int64)
+        n_iter = np.zeros(len(means), dtype=np.int64)
+        active = np.arange(len(means))
+        trajectories = [[m.copy()] for m in means] if self.record_trajectories else None
+
+        while active.size:
+            neighbors = self._search.query_radius(means[active], radius)
+            still_active = []
+            for i, (idx, sq_dist) in zip(active, neighbors):
+                if idx.size == 0:  # seed không có láng giềng nào -> bỏ
+                    intensities[i] = 0
+                    continue
+                w = self._kernel.weights(sq_dist, h)
+                old = means[i].copy()
+                means[i] = w @ X[idx] / w.sum()
+                intensities[i] = np.count_nonzero(sq_dist <= h_sq)
+                if trajectories is not None:
+                    trajectories[i].append(means[i].copy())
+                if np.linalg.norm(means[i] - old) <= stop_thresh or n_iter[i] == self.max_iter:
+                    continue
+                n_iter[i] += 1
+                still_active.append(i)
+            active = np.asarray(still_active, dtype=np.intp)
+
+        if trajectories is not None:
+            self.trajectories_ = [np.array(t) for t in trajectories]
+        return means, intensities, n_iter
 
     def _merge_modes(self, modes, intensities):
-        """Bước 4. Trả về (centers (k, d), center_intensities (k,))."""
-        raise NotImplementedError
+        """Gộp các mode gần nhau, giữ mode có intensity lớn hơn."""
+        radius = self.merge_radius if self.merge_radius is not None else self.bandwidth_
+        unique_modes = {}
+        for m, c in zip(map(tuple, modes), intensities):
+            unique_modes[m] = int(c)
+        # Sắp theo (intensity, toạ độ) giảm dần — cùng quy tắc phá hoà với sklearn
+        ordered = sorted(unique_modes.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
+        sorted_modes = np.array([m for m, _ in ordered])
+        sorted_counts = np.array([c for _, c in ordered])
+
+        tree = cKDTree(sorted_modes)
+        keep = np.ones(len(sorted_modes), dtype=bool)
+        for i, m in enumerate(sorted_modes):
+            if keep[i]:
+                keep[tree.query_ball_point(m, radius)] = False
+                keep[i] = True
+        return sorted_modes[keep], sorted_counts[keep]
 
     def _assign_labels(self, X, centers, cluster_all):
-        """Bước 5. Trả về labels (n,)."""
-        raise NotImplementedError
+        dist, idx = cKDTree(centers).query(X, k=1)
+        labels = np.asarray(idx, dtype=np.int64)
+        if not cluster_all:
+            labels[dist > self.bandwidth_] = -1
+        return labels
