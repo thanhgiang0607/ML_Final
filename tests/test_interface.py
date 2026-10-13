@@ -1,9 +1,3 @@
-"""Kiểm tra GIAO DIỆN (tên lớp, tên hàm, tham số, giá trị mặc định) không bị đổi.
-
-Test này phải luôn pass — kể cả khi các hàm còn là stub. Nếu nó fail nghĩa là
-ai đó đã đổi chữ ký hàm, các phần khác sẽ không ghép được. Muốn đổi giao diện
-thì phải bàn với cả nhóm và sửa file này cùng PR.
-"""
 import inspect
 
 from meanshift import (

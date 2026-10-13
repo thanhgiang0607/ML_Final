@@ -1,14 +1,10 @@
-"""Lớp cơ sở cho các thuật toán phân cụm (API giống scikit-learn).
-
-ĐÃ CÀI SẴN — mọi người dùng chung, không cần sửa. Người giữ file: A.
-"""
+"""Lớp cơ sở cho các thuật toán phân cụm (API giống scikit-learn)."""
 import inspect
 
 import numpy as np
 
 
 class BaseClusterer:
-    """Cung cấp get_params / set_params / fit_predict / __repr__ dùng chung."""
 
     @classmethod
     def _param_names(cls):

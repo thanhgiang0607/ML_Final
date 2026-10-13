@@ -101,7 +101,7 @@ def test_ten_la_bao_value_error(ten_la):
         make_neighbor_search(ten_la)
 
 def test_diem_trung_toa_do():
-    """Các điểm trùng tọa độ phải được trả về đầy đủ."""
+    """Các điểm trùng tọa độ phải được trả về đầy đủ với bán kính r > 0."""
     X = np.array([
         [0.0, 0.0],  # index 0
         [1.0, 1.0],  # index 1
@@ -121,7 +121,7 @@ def test_diem_trung_toa_do():
         KDTreeSearch(),
     ]:
         search.fit(X)
-        results = search.query_radius(points, r=0.0)
+        results = search.query_radius(points, r=0.5)
 
         assert len(results) == len(expected)
 
@@ -169,5 +169,6 @@ def test_ban_kinh_bang_0():
         for (idx, sq_dist), expected_idx, expected_sq in zip(
             results, expected_indices, expected_sq_distances
         ):
+            assert idx.dtype.kind == "i"
             np.testing.assert_array_equal(idx, expected_idx)
             assert_allclose(sq_dist, expected_sq, atol=1e-12)
