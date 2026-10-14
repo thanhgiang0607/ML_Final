@@ -9,3 +9,5 @@ data/synthetic/
 # Kết quả thực nghiệm: sinh lại bằng experiments/*.py
 results/*
 !results/.gitkeep
+# Local report
+reports/Bao_cao_Duong_E1_E2.docx
