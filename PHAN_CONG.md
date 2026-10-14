@@ -77,13 +77,83 @@ core.py       MeanShiftCustom(bandwidth=None, kernel="flat", neighbor_search="kd
 
 ### Thứ tự và phụ thuộc
 
+**Hầu hết làm song song, độc lập.** `core.py` đã merge nên ai cũng gọi được `MeanShiftCustom`. Chỉ phần ảnh ISIC có phụ thuộc.
+
+**Làm ngay, không chờ ai:**
+
+| Người | Phần làm độc lập |
+|---|---|
+| **E** | E1, E2 (toàn bộ) |
+| **C** | E3 (toàn bộ, vì tự sinh dữ liệu trong script) |
+| **D** | E4 phần 1: dữ liệu giả lập |
+| **B** | `isic_baselines.py`, E6 bước 2 (giả lập), bước 4 (hình quỹ đạo) |
+| **A** | `isic_utils.py` |
+
+**Các chỗ phụ thuộc:**
+
 ```
-Tuần 3 (đầu)  E: experiments/common.py (nằm trong PR E1)   ─┐
-              A: experiments/isic_utils.py                  ─┼─ merge TRƯỚC, người khác dùng chung
-              B: experiments/isic_baselines.py               ─┘
-Tuần 3–4      E1, E2, E3, phần giả lập của E4 và E6          (chỉ cần common.py)
-Tuần 4–5      phần ISIC của E4, E6; E5 chỉnh tham số → chấm test   (cần isic_utils.py)
-Cuối tuần 5   mọi thực nghiệm xong, chép hình/bảng chốt vào report/
+common.py (E) ─────────► C, D, B dùng để đọc dữ liệu giả            (không chặn)
+isic_utils.py (A) ─────► D: E4 phần 2 · B: E6 bước 3 · A: E5        (CHẶN — làm trước)
+isic_baselines.py (B) ─► A: E5 bước 2                                (không chặn)
+h tốt nhất 3D Lab (D) ─► A: E5 bước 2                                (không chặn)
+```
+
+| Phụ thuộc | Người cần | Cách để không phải chờ |
+|---|---|---|
+| `common.py` (E) | C, D, B | Chưa merge thì tạm tự đọc CSV ngay trong script (vài dòng `np.loadtxt`); merge xong thì đổi sang dùng chung. |
+| `isic_utils.py` (A) | D, B, A | **Phụ thuộc thật duy nhất.** A ưu tiên merge trong **2–3 ngày đầu tuần 3**. Trong lúc đó D, B làm phần giả lập (phần ISIC vốn xếp vào tuần 4–5). |
+| `isic_baselines.py` (B) | A | File ngắn, B làm ~1 ngày. A chỉ cần ở bước chỉnh tham số E5 — lúc đó đã có. |
+| h tốt nhất 3D Lab (D) | A | Không chặn: A tự quét lưới h khi chỉnh tham số trên tập tune; kết quả của D dùng để đối chiếu. |
+
+**Lịch tổng:**
+
+```
+Tuần 3 (2–3 ngày đầu)  A: isic_utils.py · B: isic_baselines.py · E: common.py   → merge TRƯỚC
+Tuần 3–4               E1, E2, E3, phần giả lập của E4 và E6                     (song song)
+Tuần 4–5               phần ISIC của E4, E6; E5 chỉnh tham số → chấm test        (cần isic_utils.py)
+Cuối tuần 5            mọi thực nghiệm xong, chép hình/bảng chốt vào report/
+```
+
+#### Giao diện file dùng chung — chốt TRƯỚC khi code
+
+Ai cần dùng thì **viết sẵn code gọi theo đúng chữ ký dưới đây**, không cần chờ file được merge. Muốn đổi → báo cả nhóm.
+
+```
+experiments/common.py            (E)
+  DATASETS = ["blobs", "blobs_varied", "blobs_aniso", "moons", "circles"]
+  load_synthetic(name, seed) -> (X: ndarray (n, 2), y: ndarray (n,))
+  timeit(fn, repeat=3) -> (kết quả của fn(), thời gian trung vị (giây))
+  out_dir(name) -> Path            # results/<name>/, tự tạo nếu chưa có
+
+experiments/isic_utils.py        (A)
+  load_split(name) -> list[str]                # name: "tune" | "test"
+  load_image(image_id, max_side=128) -> (rgb: ndarray (H, W, 3) uint8, mask: ndarray (H, W) bool)
+  to_lab(rgb) -> ndarray (H, W, 3) float
+  features(rgb, mode, hs=None, hr=None) -> ndarray (H*W, d)
+                                               # mode: "rgb3" | "lab3" | "lab5" (lab5 cần hs, hr)
+  labels_to_mask(labels, rgb) -> ndarray (H, W) bool
+                                               # labels: ndarray (H*W,) — nhãn cụm của từng pixel
+  dice(pred, gt) -> float
+  iou(pred, gt) -> float
+
+experiments/isic_baselines.py    (B)
+  otsu_labels(rgb) -> ndarray (H*W,)           # Otsu trên kênh L, nhãn 0/1
+  kmeans_labels(feat, k=2) -> ndarray (H*W,)   # random_state=0
+  gmm_labels(feat, k=2) -> ndarray (H*W,)      # random_state=0
+```
+
+Ví dụ một vòng E5 / E4 phần 2 (ai cũng viết được ngay từ bây giờ):
+
+```python
+from isic_utils import load_split, load_image, features, labels_to_mask, dice
+from meanshift import MeanShiftCustom
+
+for image_id in load_split("tune"):
+    rgb, gt = load_image(image_id)
+    X = features(rgb, "lab3")
+    labels = MeanShiftCustom(bandwidth=8, bin_seeding=True).fit_predict(X)
+    pred = labels_to_mask(labels, rgb)
+    print(image_id, dice(pred, gt))
 ```
 
 ### Quy ước chung cho mọi script
