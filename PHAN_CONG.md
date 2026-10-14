@@ -2,27 +2,33 @@
 
 > Đọc trước: `Proposal_MeanShift.docx` (đề tài, mục tiêu) · `README.md` (cấu trúc, lệnh chạy)
 
-| Ký hiệu | Thành viên | Vai trò chính |
-|---|---|---|
-| A | _(điền tên)_ | Trưởng nhóm · `core.py` · ghép code · case study ảnh da |
-| B | _(điền tên)_ | `kernels.py` · Chương 1 lý thuyết |
-| C | _(điền tên)_ | `neighbors.py` · đo tốc độ |
-| D | _(điền tên)_ | `bandwidth.py`, `seeding.py` · độ nhạy h |
-| E | _(điền tên)_ | Đối chiếu sklearn (E1) · so sánh thuật toán (E2) |
+
+| Ký hiệu | Thành viên   | Vai trò chính                                           |
+| ------- | ------------ | ------------------------------------------------------- |
+| A       | *(điền tên)* | Trưởng nhóm · `core.py` · ghép code · case study ảnh da |
+| B       | *(điền tên)* | `kernels.py` · Chương 1 lý thuyết                       |
+| C       | *(điền tên)* | `neighbors.py` · đo tốc độ                              |
+| D       | *(điền tên)* | `bandwidth.py`, `seeding.py` · độ nhạy h                |
+| E       | *(điền tên)* | Đối chiếu sklearn (E1) · so sánh thuật toán (E2)        |
+
 
 ---
+
+
 
 ## Giai đoạn 1 – Code OOP (tuần 1–2)
 
 Các file trong `meanshift/` đã có **khung sẵn (stub)**: tên lớp, tên hàm, tham số và mô tả đầu vào/đầu ra đã chốt. Mỗi người chỉ cần viết phần ruột ở chỗ có `# TODO(<ký hiệu>)`.
 
-| Người | File cần code | File test | Branch | Xong khi |
-|---|---|---|---|---|
-| **A** | `meanshift/core.py` | `tests/test_core.py` | `oop-core` | 2 blob xa nhau → đúng 2 cụm; `predict` khớp `labels_` |
-| **B** | `meanshift/kernels.py` | `tests/test_kernels.py` | `oop-kernels` | Trọng số Flat = 1; Gaussian đúng `exp(-u/2)` |
-| **C** | `meanshift/neighbors.py` | `tests/test_neighbors.py` | `oop-neighbors` | Brute-force và KD-Tree trả về cùng láng giềng |
-| **D** | `meanshift/bandwidth.py`, `meanshift/seeding.py` | `tests/test_bandwidth.py`, `tests/test_seeding.py` | `oop-bandwidth-seeding` | Ra cùng kết quả với sklearn |
-| **E** | `experiments/e1_compare_sklearn.py` | `tests/test_vs_sklearn.py` | `e1-compare` | Bảng + hình đối chiếu sklearn trên 5 bộ × 10 seed |
+
+| Người | File cần code                                    | File test                                          | Branch                  | Xong khi                                              |
+| ----- | ------------------------------------------------ | -------------------------------------------------- | ----------------------- | ----------------------------------------------------- |
+| **A** | `meanshift/core.py`                              | `tests/test_core.py`                               | `oop-core`              | 2 blob xa nhau → đúng 2 cụm; `predict` khớp `labels_` |
+| **B** | `meanshift/kernels.py`                           | `tests/test_kernels.py`                            | `oop-kernels`           | Trọng số Flat = 1; Gaussian đúng `exp(-u/2)`          |
+| **C** | `meanshift/neighbors.py`                         | `tests/test_neighbors.py`                          | `oop-neighbors`         | Brute-force và KD-Tree trả về cùng láng giềng         |
+| **D** | `meanshift/bandwidth.py`, `meanshift/seeding.py` | `tests/test_bandwidth.py`, `tests/test_seeding.py` | `oop-bandwidth-seeding` | Ra cùng kết quả với sklearn                           |
+| **E** | `experiments/e1_compare_sklearn.py`              | `tests/test_vs_sklearn.py`                         | `e1-compare`            | Bảng + hình đối chiếu sklearn trên 5 bộ × 10 seed     |
+
 
 `meanshift/base.py` (lớp cơ sở, `check_array`) **đã cài sẵn**, mọi người dùng chung.
 
@@ -54,17 +60,223 @@ core.py       MeanShiftCustom(bandwidth=None, kernel="flat", neighbor_search="kd
 
 ---
 
+
+
 ## Giai đoạn 2 – Thực nghiệm (tuần 3–5)
 
-| Người | Thực nghiệm | Script | Dữ liệu |
-|---|---|---|---|
-| A | **E5** – Phân đoạn tổn thương da (Lab, 3D/5D, tạo mask, so Otsu/K-Means/GMM) | `experiments/e5_isic_segmentation.py` | ISIC: `data/splits/` |
-| B | **E6** – Ablation (flat vs Gaussian, bật/tắt bin seeding) + hỗ trợ E5 | `experiments/e6_ablation.py` | Giả lập + ISIC tune |
-| C | **E3** – Tốc độ & bộ nhớ (n = 500 → 50.000; theo h) | `experiments/e3_runtime.py` | Giả lập sinh riêng |
-| D | **E4** – Độ nhạy theo h | `experiments/e4_bandwidth.py` | Giả lập + ISIC tune |
-| E | **E2** – So với K-Means, DBSCAN, GMM | `experiments/e2_compare_algorithms.py` | `data/synthetic/` |
+### Tổng quan
 
-Kết quả lưu vào `results/<tên thực nghiệm>/` (thư mục này không đẩy lên git — gửi hình/bảng cuối cùng qua nhóm hoặc đưa thẳng vào báo cáo).
+| Người | Thực nghiệm | Trả lời | Script | Dữ liệu | Đầu ra (`results/…`) | Branch |
+|---|---|---|---|---|---|---|
+| **E** | **E1** – Đối chiếu sklearn (làm nốt từ giai đoạn 1) | RQ1 | `experiments/e1_compare_sklearn.py`, `experiments/common.py` | `data/synthetic/` (5 bộ × 10 seed) | `results/e1/` | `e1-compare` |
+| **E** | **E2** – So với K-Means, DBSCAN, GMM | RQ2 | `experiments/e2_compare_algorithms.py` | `data/synthetic/` (5 bộ × 10 seed) | `results/e2/` | `e2-algorithms` |
+| **C** | **E3** – Tốc độ & bộ nhớ | RQ3 | `experiments/e3_runtime.py` | Giả lập sinh riêng trong script (n = 500 → 50.000) | `results/e3/` | `e3-runtime` |
+| **D** | **E4** – Độ nhạy theo h | RQ4 | `experiments/e4_bandwidth.py` | `data/synthetic/` + ISIC tune (100 ảnh) | `results/e4/` | `e4-bandwidth` |
+| **A** | **E5** – Phân đoạn tổn thương da | RQ5 | `experiments/isic_utils.py`, `experiments/e5_isic_segmentation.py` | ISIC tune (100) + ISIC test (200) | `results/e5/` | `isic-utils`, `e5-isic` |
+| **B** | **E6** – Ablation + hình quỹ đạo + baseline cho E5 | RQ3, RQ5 | `experiments/e6_ablation.py`, `experiments/fig_trajectories.py`, `experiments/isic_baselines.py` | `data/synthetic/` + ISIC tune | `results/e6/` | `e6-ablation`, `isic-baselines` |
+
+### Thứ tự và phụ thuộc
+
+```
+Tuần 3 (đầu)  E: experiments/common.py (nằm trong PR E1)   ─┐
+              A: experiments/isic_utils.py                  ─┼─ merge TRƯỚC, người khác dùng chung
+              B: experiments/isic_baselines.py               ─┘
+Tuần 3–4      E1, E2, E3, phần giả lập của E4 và E6          (chỉ cần common.py)
+Tuần 4–5      phần ISIC của E4, E6; E5 chỉnh tham số → chấm test   (cần isic_utils.py)
+Cuối tuần 5   mọi thực nghiệm xong, chép hình/bảng chốt vào report/
+```
+
+### Quy ước chung cho mọi script
+
+1. **Chạy bằng 1 lệnh**: `python3 experiments/eX_....py`. Có cờ `--quick` chạy bản rút gọn (ít seed, ít ảnh, < 1 phút) để người review chạy thử.
+2. **Seed cố định** (`random_state=0` hoặc theo seed của bộ dữ liệu) → chạy lại ra cùng số.
+3. **Lưu 2 loại CSV**: `eX_runs.csv` (dữ liệu thô, mỗi dòng 1 lần chạy) và `eX_summary.csv` (gộp: trung bình ± độ lệch chuẩn).
+4. **Hình**: PNG, `dpi=150`, có tiêu đề trục, chú thích (legend), chữ tiếng Việt có dấu.
+5. **Đo thời gian**: `time.perf_counter()`, lặp 3 lần lấy **trung vị**. sklearn luôn chạy `n_jobs=1` cho công bằng.
+6. **In tóm tắt ra màn hình** khi chạy xong (vài dòng số liệu chính).
+7. **Viết `results/eX/NOTES.md`** (5–10 dòng): cấu hình đã chạy, số liệu chính, nhận xét → dùng để viết báo cáo.
+8. `results/` không lên git. **Hình/bảng chốt cuối cùng** chép vào `report/figures/` và `report/tables/` (có lên git) để A ghép báo cáo.
+9. Script trong `experiments/` không bắt buộc có test, nhưng vẫn đi qua PR và review như giai đoạn 1.
+
+---
+
+### E – E1 (làm nốt) và E2
+
+**E1 – Đối chiếu sklearn** · yêu cầu chi tiết đã ghi trong docstring `experiments/e1_compare_sklearn.py`.
+
+- [ ] Viết `experiments/common.py` dùng chung cho cả nhóm:
+  - `DATASETS = ["blobs", "blobs_varied", "blobs_aniso", "moons", "circles"]`
+  - `load_synthetic(name, seed) -> (X, y)` (đọc `data/synthetic/<name>_seed<k>.csv`)
+  - `timeit(fn, repeat=3) -> (kết quả, thời gian trung vị)`
+  - `out_dir(name) -> Path` (tạo `results/<name>/` nếu chưa có)
+- [ ] Chạy lưới: 5 bộ × 10 seed × α ∈ {0.25, 0.5, 1.0} × bin_seeding {tắt, bật} × {brute, kdtree} = 600 lần.
+- [ ] Liệt kê và **giải thích** các lần chạy khác sklearn (nếu có).
+
+| Đầu ra | Nội dung |
+|---|---|
+| `results/e1/e1_runs.csv` | Mỗi dòng 1 lần chạy: bộ, seed, α, h, bin_seeding, search, số cụm 2 bên, ARI giữa 2 bên, lệch tâm lớn nhất / h, nhãn giống hệt (True/False), n_iter 2 bên, thời gian 2 bên, ARI mỗi bên so với nhãn đúng |
+| `results/e1/e1_summary.csv` | Gộp theo (bộ, α, bin_seeding, search): % cùng số cụm, % nhãn giống hệt, ARI nhỏ nhất, lệch tâm lớn nhất |
+| `results/e1/e1_examples.png` | 5 hàng (5 bộ) × 2 cột (custom \| sklearn), seed 0, α = 0.5 |
+| `results/e1/NOTES.md` | Kết luận RQ1 |
+
+**E2 – So với K-Means, DBSCAN, GMM**
+
+- [ ] Dữ liệu: 5 bộ × 10 seed (`load_synthetic`). Chuẩn hoá `StandardScaler` trước khi chạy (ghi rõ trong NOTES).
+- [ ] Cấu hình từng thuật toán (chọn trên **seed 0**, giữ nguyên cho seed 1–9):
+  - **Mean-Shift** (`MeanShiftCustom`): (a) h = `estimate_bandwidth(X)` mặc định — không biết số cụm; (b) h tốt nhất trong lưới α·h₀, α ∈ {0.25, 0.5, 0.75, 1, 1.5}.
+  - **K-Means**: k = số cụm đúng, `n_init=10`.
+  - **GMM**: k = số cụm đúng, `covariance_type="full"`.
+  - **DBSCAN**: `min_samples=5`, eps chọn trong lưới (ví dụ 0.05 → 0.5) cho ARI cao nhất trên seed 0. Điểm nhiễu (−1) giữ nguyên khi tính ARI.
+- [ ] Đo: ARI, NMI (so với nhãn đúng), số cụm tìm được, thời gian chạy.
+- [ ] Nhận xét: thuật toán nào thắng ở bộ nào, vì sao (moons/circles không lồi; blobs_varied mật độ khác nhau; K-Means/GMM được cho biết trước k).
+
+| Đầu ra | Nội dung |
+|---|---|
+| `results/e2/e2_params.csv` | Tham số đã chọn trên seed 0 cho từng (bộ, thuật toán) |
+| `results/e2/e2_runs.csv` | Mỗi dòng: bộ, seed, thuật toán, ARI, NMI, số cụm, thời gian |
+| `results/e2/e2_summary.csv` | Bảng ARI, NMI trung bình ± std: hàng = bộ, cột = thuật toán |
+| `results/e2/e2_grid.png` | Lưới 5 hàng (bộ) × 5 cột (MS mặc định, MS tốt nhất, K-Means, DBSCAN, GMM), seed 0 |
+| `results/e2/e2_ari_bar.png` | Biểu đồ cột ARI trung bình (có thanh sai số) theo bộ × thuật toán |
+| `results/e2/NOTES.md` | Kết luận RQ2 |
+
+---
+
+### C – E3: Tốc độ & bộ nhớ
+
+- [ ] Sinh dữ liệu ngay trong script: `make_blobs(n, centers=5, cluster_std=1.0, random_state=0)`, d = 2.
+- [ ] **Theo n**: n ∈ {500, 1.000, 2.000, 5.000, 10.000, 20.000, 50.000}. h **cố định** = `estimate_bandwidth` tính một lần trên mẫu 2.000 điểm (để chỉ n thay đổi).
+- [ ] **Theo h**: n = 5.000, h = α·h₀ với α ∈ {0.25, 0.5, 1, 2}.
+- [ ] Các bản cần đo:
+  - custom brute · custom kdtree · custom kdtree + bin_seeding
+  - sklearn `MeanShift(n_jobs=1)` · sklearn + bin_seeding
+- [ ] Thời gian: trung vị 3 lần. **Bộ nhớ đỉnh**: `tracemalloc` (bắt đầu trước `fit`, lấy `get_traced_memory()[1]`).
+- [ ] Giới hạn: lần chạy nào > 10 phút thì bỏ các n lớn hơn của bản đó, ghi "quá thời gian" vào CSV.
+- [ ] Ghi cấu hình máy (CPU, RAM, phiên bản Python/NumPy/sklearn) vào `env.txt`.
+- [ ] Nhận xét: KD-Tree nhanh hơn brute từ n bao nhiêu; khi h lớn KD-Tree còn lợi không; bin seeding giảm số seed và thời gian bao nhiêu.
+
+| Đầu ra | Nội dung |
+|---|---|
+| `results/e3/e3_runs.csv` | Mỗi dòng: thí nghiệm (n / h), n, h, bản, lần lặp, thời gian (s), bộ nhớ đỉnh (MB), số seed, số cụm |
+| `results/e3/e3_summary.csv` | Trung vị thời gian, bộ nhớ theo (n, bản) và (h, bản); hệ số tăng tốc so với brute |
+| `results/e3/e3_time_vs_n.png` | Thời gian theo n, trục log–log, mỗi bản 1 đường |
+| `results/e3/e3_memory_vs_n.png` | Bộ nhớ đỉnh theo n |
+| `results/e3/e3_time_vs_h.png` | Thời gian theo h (n = 5.000) |
+| `results/e3/env.txt` | Cấu hình máy và phiên bản thư viện |
+| `results/e3/NOTES.md` | Kết luận RQ3 |
+
+---
+
+### D – E4: Độ nhạy theo h
+
+**Phần 1 – Dữ liệu giả lập** (làm ngay tuần 3)
+
+- [ ] 5 bộ × 10 seed; h = α·h₀ với h₀ = `estimate_bandwidth(X)`, α = `np.geomspace(0.1, 3, 15)`.
+- [ ] Mỗi lần chạy ghi: số cụm, ARI, NMI, thời gian (bật `bin_seeding` cho nhanh, ghi rõ).
+- [ ] Đánh dấu α = 1 (h mặc định) trên hình; so h mặc định với h tốt nhất.
+
+**Phần 2 – ISIC tune** (tuần 4–5, sau khi `isic_utils.py` merge)
+
+- [ ] 100 ảnh tune, đặc trưng 3D Lab (`isic_utils`), Mean-Shift `bin_seeding=True`.
+- [ ] h ∈ {2, 4, 6, 8, 10, 12, 16, 20} (đơn vị Lab) + h = `estimate_bandwidth` của từng ảnh.
+- [ ] Mỗi (ảnh, h) ghi: Dice, IoU, số cụm, thời gian. Tìm h cho Dice trung bình cao nhất → **gửi A dùng cho E5 (Mean-Shift 3D Lab)**.
+
+| Đầu ra | Nội dung |
+|---|---|
+| `results/e4/e4_synthetic_runs.csv` | Mỗi dòng: bộ, seed, α, h, số cụm, ARI, NMI, thời gian |
+| `results/e4/e4_synthetic.png` | 2 hình con: số cụm theo α và ARI theo α, mỗi bộ 1 đường (trung bình ± std qua 10 seed) |
+| `results/e4/e4_isic_runs.csv` | Mỗi dòng: ảnh, h, Dice, IoU, số cụm, thời gian |
+| `results/e4/e4_isic_h.png` | Dice trung bình (± std) theo h trên 100 ảnh tune |
+| `results/e4/e4_isic_examples.png` | 1–2 ảnh, mỗi ảnh 4 mức h: ảnh gốc, cụm, mask |
+| `results/e4/best_h_3d_lab.json` | h tốt nhất cho 3D Lab (A dùng ở E5) |
+| `results/e4/NOTES.md` | Kết luận RQ4 |
+
+---
+
+### A – E5: Phân đoạn tổn thương da
+
+**Bước 1 – `experiments/isic_utils.py`** (merge **đầu tuần 3**, B và D dùng chung)
+
+- [ ] `load_split(name) -> list[id]` đọc `data/splits/isic_tune.txt` / `isic_test.txt`
+- [ ] `load_image(id) -> (ảnh RGB, mask)`: thu nhỏ cạnh dài về 128 px (mask thu nhỏ cùng cỡ, nearest)
+- [ ] `to_lab(rgb)`: đổi RGB → Lab (thêm `scikit-image` vào `requirements.txt`, ghi trong PR)
+- [ ] `features(img, mode, hs=None, hr=None)`: `"rgb3"` = (R, G, B); `"lab3"` = (L, a, b); `"lab5"` = (x/hs, y/hs, L/hr, a/hr, b/hr)
+- [ ] `labels_to_mask(labels, img)`: quy tắc chung cho **mọi** phương pháp — bỏ cụm phủ phần lớn viền ảnh → chọn cụm tối nhất (L trung bình nhỏ nhất) → lấp lỗ (`scipy.ndimage.binary_fill_holes`) → giữ vùng liền lớn nhất (`scipy.ndimage.label`)
+- [ ] `dice(pred, gt)`, `iou(pred, gt)`
+- [ ] Test nhanh trên 3–5 ảnh, lưu hình kiểm tra `results/e5/check_utils.png`
+
+**Bước 2 – Chỉnh tham số trên 100 ảnh tune**
+
+- [ ] Mean-Shift 3D RGB, 3D Lab: lưới h (lấy kết quả từ D cho 3D Lab).
+- [ ] Mean-Shift 5D Lab: lưới hs ∈ {8, 16, 32}, hr ∈ {4, 8, 12} (bandwidth = 1 sau khi chia tỷ lệ).
+- [ ] Baseline (của B): Otsu kênh L, K-Means k = 2, GMM k = 2 — không cần chỉnh.
+- [ ] Giữ bộ tham số có Dice trung bình cao nhất cho mỗi phương pháp.
+
+**Bước 3 – Chấm trên 200 ảnh test (chạy 1 lần duy nhất)**
+
+- [ ] 6 phương pháp: Otsu, K-Means, GMM, MS 3D RGB, MS 3D Lab, MS 5D Lab.
+- [ ] Đo Dice, IoU, thời gian/ảnh.
+- [ ] Wilcoxon (`scipy.stats.wilcoxon`) giữa Mean-Shift tốt nhất và từng phương pháp còn lại.
+- [ ] Chạy thêm sklearn `MeanShift` với cùng tham số trên ~20 ảnh để xem mask giống/khác bản tự viết.
+- [ ] Phân tích lỗi: xem ảnh tốt nhất, trung vị, tệ nhất; xếp nhóm nguyên nhân (lông, viền đen ống kính, tổn thương nhạt màu, nhiều màu).
+
+| Đầu ra | Nội dung |
+|---|---|
+| `results/e5/check_utils.png` | Kiểm tra pipeline trên vài ảnh |
+| `results/e5/e5_tune_runs.csv` | Mỗi dòng: ảnh, phương pháp, tham số, Dice, IoU, thời gian |
+| `results/e5/e5_best_params.json` | Tham số tốt nhất của từng phương pháp |
+| `results/e5/e5_test_runs.csv` | 200 ảnh × 6 phương pháp: Dice, IoU, thời gian |
+| `results/e5/e5_test_summary.csv` | Bảng kết quả chính: Dice, IoU (trung bình ± std), thời gian/ảnh |
+| `results/e5/e5_wilcoxon.csv` | p-value Mean-Shift tốt nhất vs từng phương pháp |
+| `results/e5/e5_vs_sklearn.csv` | Dice giữa mask bản tự viết và mask sklearn trên ~20 ảnh |
+| `results/e5/e5_examples.png` | Ảnh tốt / trung vị / tệ: ảnh gốc, mask bác sĩ, mask từng phương pháp |
+| `results/e5/e5_failures.png` | Ví dụ từng nhóm lỗi |
+| `results/e5/e5_dice_box.png` | Boxplot Dice của 6 phương pháp trên 200 ảnh test |
+| `results/e5/NOTES.md` | Kết luận RQ5 |
+
+---
+
+### B – E6: Ablation + hình quỹ đạo + baseline cho E5
+
+**Bước 1 – `experiments/isic_baselines.py`** (merge **đầu tuần 3**, A dùng cho E5)
+
+- [ ] `otsu_labels(img)`: Otsu trên kênh L
+- [ ] `kmeans_labels(feat, k=2)`, `gmm_labels(feat, k=2)` (`random_state=0`)
+- [ ] Trả về nhãn cùng dạng với Mean-Shift để đưa chung vào `labels_to_mask` của A.
+
+**Bước 2 – Ablation trên dữ liệu giả lập** (5 bộ × 10 seed, h = h₀)
+
+- [ ] **Flat vs Gaussian**: ARI, số cụm, n_iter_, thời gian.
+- [ ] **Gaussian cutoff** ∈ {2, 3, 4}: kết quả đổi bao nhiêu, thời gian đổi bao nhiêu.
+- [ ] **Bin seeding tắt/bật**: số seed, thời gian, ARI, có đổi số cụm không.
+
+**Bước 3 – Ablation trên ISIC tune** (sau khi `isic_utils.py` merge)
+
+- [ ] 3D Lab, h tốt nhất của D: Flat vs Gaussian, bin seeding tắt/bật → Dice, thời gian/ảnh.
+
+**Bước 4 – Hình minh hoạ cho Chương 1 và mục 3.2** (`experiments/fig_trajectories.py`)
+
+- [ ] Quỹ đạo dịch chuyển của ~20 seed trên `blobs` (dùng `record_trajectories=True`) vẽ chồng lên đường đồng mức KDE.
+- [ ] Giá trị mật độ KDE f̂(yₜ) theo vòng lặp t của vài seed → minh hoạ mật độ tăng dần.
+
+| Đầu ra | Nội dung |
+|---|---|
+| `results/e6/e6_kernel.csv` | Flat vs Gaussian: bộ, seed, kernel, ARI, số cụm, n_iter, thời gian |
+| `results/e6/e6_cutoff.csv` | Gaussian cutoff 2/3/4: ARI, số cụm, thời gian |
+| `results/e6/e6_binseed.csv` | Bin seeding tắt/bật: số seed, thời gian, ARI, số cụm |
+| `results/e6/e6_summary.csv` | Bảng gộp các ablation (trung bình ± std) |
+| `results/e6/e6_isic.csv` | Ablation trên 100 ảnh tune: Dice, thời gian/ảnh |
+| `results/e6/e6_trajectories.png` | Quỹ đạo seed trên đường đồng mức KDE |
+| `results/e6/e6_density_path.png` | f̂(yₜ) theo vòng lặp t |
+| `results/e6/NOTES.md` | Kết luận ablation (bổ sung RQ3, RQ5) |
+
+---
+
+### Xong giai đoạn 2 khi
+
+- [ ] 6 script chạy được bằng 1 lệnh, đã merge vào `main`.
+- [ ] Mỗi `results/eX/` có đủ file ở bảng trên + `NOTES.md`.
+- [ ] Hình/bảng chốt đã chép vào `report/figures/`, `report/tables/`.
+- [ ] Mỗi RQ1–RQ5 có ít nhất 1 bảng hoặc 1 hình trả lời.
 
 ## Giai đoạn 3 – Báo cáo & slide (tuần 6–7)
 
@@ -75,7 +287,11 @@ Kết quả lưu vào `results/<tên thực nghiệm>/` (thư mục này không 
 
 ---
 
+
+
 ## Quy trình làm việc với Git (từ đầu đến cuối)
+
+
 
 ### Lần đầu tiên (mỗi người làm 1 lần)
 
@@ -88,11 +304,16 @@ python3 data/download_isic.py            # chỉ người làm E4/E5/E6 cần
 python3 -m pytest                        # kiểm tra môi trường: không có FAILED
 ```
 
+
+
 ### Mỗi phần việc — ví dụ B làm `kernels.py`
+
+
 
 #### Phía thành viên
 
 **1. Lấy code mới nhất, tạo branch riêng**
+
 ```bash
 git checkout main
 git pull
@@ -100,18 +321,22 @@ git checkout -b oop-kernels
 ```
 
 **2. Code và test xen kẽ**
+
 - Viết phần ruột ở các chỗ `# TODO(B)` trong `meanshift/kernels.py`.
 - Viết thêm test vào `tests/test_kernels.py`.
 - Chạy liên tục trong lúc code: `python3 -m pytest tests/test_kernels.py` — sai thì sửa ngay.
 
 **3. Code xong → kiểm tra lần cuối trên máy**
+
 ```bash
 git pull origin main          # gộp những gì người khác đã merge vào main
 python3 -m pytest             # toàn bộ test: không có FAILED
 ```
+
 Nếu `git pull` báo **conflict**: mở file bị xung đột, giữ phần đúng, rồi `git add` + `git commit`.
 
 **4. Commit và push lên branch của mình**
+
 ```bash
 git add meanshift/kernels.py tests/test_kernels.py
 git commit -m "Cài FlatKernel, GaussianKernel và test"
@@ -119,36 +344,46 @@ git push -u origin oop-kernels
 ```
 
 **5. Tạo Pull Request trên GitHub**
+
 - Vào repo → bấm **Compare & pull request**.
 - Tiêu đề: *"B – kernels.py"*. Mô tả: đã làm gì, kết quả pytest trên máy (ví dụ *9 passed, 22 skipped*).
 - **Reviewers**: chọn trưởng nhóm (hoặc 1 thành viên khác).
 - Bấm **Create pull request**.
 
 **6. Đợi GitHub tự chạy test (~1–2 phút)**
+
 - ✅ → chờ review.
 - ❌ → bấm **Details** xem test nào sai → sửa trên máy → `git add` / `git commit` / `git push` lên **cùng branch**. PR tự cập nhật, GitHub chạy lại test — **không tạo PR mới**.
+
+
 
 #### Phía người review (trưởng nhóm)
 
 **7. Review**
+
 - Xem dấu ✅. Bấm *Details* kiểm tra test của phần vừa code đã **passed** (không còn **skipped**).
 - Mở tab **Files changed** đọc code.
 - Cần sửa → comment vào dòng đó, chọn **Request changes** → thành viên sửa, push lại (quay lại bước 6).
 - Ổn → **Approve**.
 
 **8. Merge**
+
 - Bấm **Merge pull request** → **Confirm**.
 - Bấm **Delete branch** để xoá branch trên GitHub.
 - Đánh dấu ☑ ở mục *Tiến độ* cuối file này.
 
+
+
 #### Sau khi merge
 
 **9. Thành viên dọn dẹp, chuẩn bị việc tiếp theo**
+
 ```bash
 git checkout main
 git pull                       # main giờ đã có code vừa merge
 git branch -d oop-kernels      # xoá branch cũ trên máy
 ```
+
 Việc mới → quay lại bước 1 với branch mới (ví dụ `e6-ablation`).
 
 **10. Các thành viên khác** `git pull` để nhận code mới (đang ở branch riêng thì `git pull origin main`).
@@ -169,19 +404,21 @@ Cả nhóm:     git pull để nhận code mới
 
 ## Quy tắc
 
-1. **Không push thẳng lên `main`.** Mọi thay đổi đi qua Pull Request, có ít nhất 1 người khác review.
+1. **Không push thẳng lên** `main`**.** Mọi thay đổi đi qua Pull Request, có ít nhất 1 người khác review.
 2. **Chỉ merge khi test pass.** GitHub tự chạy `pytest` cho mỗi PR (GitHub Actions) — xem dấu ✅/❌ ở cuối trang PR, ❌ thì bấm *Details* để xem test nào sai. Nên tự chạy `python3 -m pytest` trên máy trước khi push cho nhanh. Test của phần chưa code hiện `SKIPPED (Chưa cài)` — bình thường.
-3. **Code trong `meanshift/` phải có test** ở `tests/test_<tên file>.py`. Đã có vài test mẫu, mỗi người bổ sung thêm. Script trong `experiments/` không bắt buộc có test.
+3. **Code trong** `meanshift/` **phải có test** ở `tests/test_<tên file>.py`. Đã có vài test mẫu, mỗi người bổ sung thêm. Script trong `experiments/` không bắt buộc có test.
 4. **Chỉ sửa file của mình.** Cần sửa file người khác → nhắn người đó hoặc nêu trong PR.
-5. **Chỉ dùng NumPy/SciPy trong `meanshift/`.** sklearn chỉ được dùng trong `tests/` và `experiments/` để đối chiếu.
+5. **Chỉ dùng NumPy/SciPy trong** `meanshift/`**.** sklearn chỉ được dùng trong `tests/` và `experiments/` để đối chiếu.
 6. **Commit message tiếng Việt, ngắn gọn**, nói rõ đã làm gì.
+
+
 
 ## Tiến độ (cập nhật khi xong)
 
-- [ ] B – `kernels.py` merged
-- [ ] C – `neighbors.py` merged
-- [ ] D – `bandwidth.py`, `seeding.py` merged
-- [ ] A – `core.py` merged, toàn bộ test pass
+- [x] B – `kernels.py` merged
+- [x] C – `neighbors.py` merged
+- [x] D – `bandwidth.py`, `seeding.py` merged
+- [x] A – `core.py` merged, toàn bộ test pass
 - [ ] E – E1 chạy xong, có bảng + hình
 - [ ] E2 · [ ] E3 · [ ] E4 · [ ] E5 · [ ] E6
 - [ ] Báo cáo · [ ] Slide
