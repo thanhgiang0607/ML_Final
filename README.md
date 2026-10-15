@@ -47,6 +47,23 @@ python3 -m pytest                          # chạy unit test (phần chưa code
 python3 experiments/e1_compare_sklearn.py  # E1 (thêm --seeds 2 để chạy nhanh)
 ```
 
+### Thực nghiệm E1 và E2
+
+```bash
+python data/make_synthetic.py
+python experiments/e1_compare_sklearn.py
+python experiments/e2_compare_algorithms.py
+python -m pytest tests
+```
+
+- E1: 5 bộ × 10 seed × 3 hệ số bandwidth × 2 cách seeding × 2 backend = 600 dòng đối chiếu. Cùng dữ liệu gốc, cùng bandwidth cho custom và sklearn; reference sklearn được dùng lại giữa hai backend.
+- E2: 5 bộ × 10 seed × 4 thuật toán = 200 lượt fit. Chuẩn hóa bằng StandardScaler; cấu hình cố định, không chọn tham số theo nhãn đánh giá. K-Means/GMM biết trước số cụm từ bộ sinh; DBSCAN dùng eps=0.2, min_samples=5. Không suy rộng thành so sánh các thuật toán đã tối ưu.
+- Có thể thêm `--seeds 2` để chạy nhanh; số liệu đó không thay thế lần chạy đầy đủ 10 seed.
+- Bảng CSV, hình PNG và metadata tái lập được lưu trong `results/e1/`, `results/e2/`; các thư mục này không commit theo `.gitignore`.
+- Thiết kế và kết quả thực nghiệm: [`THUC_NGHIEM_E1_E2.md`](THUC_NGHIEM_E1_E2.md).
+- Thời gian đo có thể khác khi chạy lại do môi trường và tải máy.
+- Commit code/test và tài liệu; không đưa dữ liệu sinh ra hoặc thư mục cache lên Git. Mọi thay đổi đi qua branch riêng và Pull Request theo `PHAN_CONG.md`.
+
 
 
 ## Dùng thử
