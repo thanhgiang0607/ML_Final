@@ -1,4 +1,4 @@
-"""Behavioral parity checks between MeanShiftCustom and sklearn MeanShift."""
+"""Đối chiếu MeanShiftCustom với sklearn.cluster.MeanShift — người phụ trách: E."""
 import numpy as np
 import pytest
 from sklearn.cluster import MeanShift
@@ -17,7 +17,7 @@ def test_flat_kernel_matches_sklearn_on_blobs(bin_seeding, search):
     ref = MeanShift(bandwidth=h, bin_seeding=bin_seeding, n_jobs=1).fit(X)
     assert len(ours.cluster_centers_) == len(ref.cluster_centers_)
     np.testing.assert_allclose(ours.cluster_centers_, ref.cluster_centers_, atol=1e-10)
-    assert adjusted_rand_score(ours.labels_, ref.labels_) == pytest.approx(1.0)
+    np.testing.assert_array_equal(ours.labels_, ref.labels_)
 
 
 def test_nonconvex_moons_partition_parity_without_assuming_truth_recovery():

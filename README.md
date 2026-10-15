@@ -44,27 +44,16 @@ pip install -r requirements.txt
 python3 data/make_synthetic.py             # sinh dữ liệu giả
 python3 data/download_isic.py              # tải ảnh da ISIC (~2,5 GB; thêm --no-test-images để chỉ tải ~240 MB)
 python3 -m pytest                          # chạy unit test (phần chưa code hiện SKIPPED)
-python3 experiments/e1_compare_sklearn.py  # E1 (thêm --seeds 2 để chạy nhanh)
 ```
 
-### Thực nghiệm E1 và E2
+### Thực nghiệm
 
 ```bash
-python data/make_synthetic.py
-python experiments/e1_compare_sklearn.py
-python experiments/e2_compare_algorithms.py
-python -m pytest tests
+python3 experiments/e1_compare_sklearn.py     # E1 – đối chiếu sklearn (--seeds 1 để chạy thử)
+python3 experiments/e2_compare_algorithms.py  # E2 – so với K-Means, DBSCAN, GMM
 ```
 
-- E1: 5 bộ × 10 seed × 3 hệ số bandwidth × 2 cách seeding × 2 backend = 600 dòng đối chiếu. Cùng dữ liệu gốc, cùng bandwidth cho custom và sklearn; reference sklearn được dùng lại giữa hai backend.
-- E2: 5 bộ × 10 seed × 4 thuật toán = 200 lượt fit. Chuẩn hóa bằng StandardScaler; cấu hình cố định, không chọn tham số theo nhãn đánh giá. K-Means/GMM biết trước số cụm từ bộ sinh; DBSCAN dùng eps=0.2, min_samples=5. Không suy rộng thành so sánh các thuật toán đã tối ưu.
-- Có thể thêm `--seeds 2` để chạy nhanh; số liệu đó không thay thế lần chạy đầy đủ 10 seed.
-- Bảng CSV, hình PNG và metadata tái lập được lưu trong `results/e1/`, `results/e2/`; các thư mục này không commit theo `.gitignore`.
-- Thiết kế và kết quả thực nghiệm: [`THUC_NGHIEM_E1_E2.md`](THUC_NGHIEM_E1_E2.md).
-- Thời gian đo có thể khác khi chạy lại do môi trường và tải máy.
-- Commit code/test và tài liệu; không đưa dữ liệu sinh ra hoặc thư mục cache lên Git. Mọi thay đổi đi qua branch riêng và Pull Request theo `PHAN_CONG.md`.
-
-
+Kết quả lưu ở `results/eX/` (không lên git). Thiết kế và kết quả E1, E2: [`report/THUC_NGHIEM_E1_E2.md`](report/THUC_NGHIEM_E1_E2.md).
 
 ## Dùng thử
 

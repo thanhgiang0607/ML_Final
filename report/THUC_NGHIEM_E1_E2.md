@@ -84,51 +84,65 @@ Chẩn đoán sử dụng Gaussian KDE đầy đủ của sklearn và quỹ đ�
 
 Script: `experiments/e2_compare_algorithms.py`.
 
-Hai chiều dữ liệu được chuẩn hóa bằng `StandardScaler` riêng cho mỗi dataset/seed. Bốn thuật toán nhận cùng dữ liệu đã chuẩn hóa. Nhãn thật không được dùng để tối ưu ARI/NMI; K-Means và GMM được cung cấp số cụm từ bộ sinh.
+Hai chiều dữ liệu được chuẩn hóa bằng `StandardScaler` riêng cho mỗi dataset/seed. Năm cấu hình nhận cùng dữ liệu đã chuẩn hóa.
 
 ### Cấu hình
 
+Tham số của Mean-Shift (h chọn) và DBSCAN được chọn theo ARI cao nhất trên **seed 0**, giữ nguyên cho seed 1–9. Bảng tổng hợp chỉ tính trên **seed 1–9** (bỏ seed đã dùng để chọn tham số).
+
 | Thuật toán | Tham số |
 |---|---|
-| MeanShiftCustom | flat, kdtree, bin_seeding=True, cluster_all=True; h = 0.5 × sklearn estimate_bandwidth(Xs, quantile=0.3, n_samples=None) |
-| KMeans | n_clusters từ bộ sinh, n_init=10, random_state=seed |
-| DBSCAN | eps=0.2, min_samples=5 |
-| GaussianMixture | n_components từ bộ sinh, covariance_type=full, n_init=5, random_state=seed |
+| MeanShift (h mặc định) | `MeanShiftCustom`, flat, kdtree, bin_seeding; h = h₀ = `estimate_bandwidth(Xs, quantile=0.3)` — không biết số cụm |
+| MeanShift (h chọn) | như trên, h = α·h₀, α ∈ {0.25, 0.5, 0.75, 1, 1.5} chọn trên seed 0 |
+| KMeans | k = số cụm đúng (oracle), n_init=10, random_state=seed |
+| DBSCAN | min_samples=5, eps ∈ {0.05, 0.1, …, 0.5} chọn trên seed 0 |
+| GMM | k = số cụm đúng (oracle), covariance_type=full, n_init=5, random_state=seed |
 
-E2 có 200 lượt fit: 5 dataset × 10 seed × 4 thuật toán. Kết quả được tổng hợp theo dataset/thuật toán bằng trung bình và độ lệch chuẩn qua 10 seed.
+Tham số đã chọn (`results/e2/e2_params.csv`):
 
-ARI và NMI được tính với toàn bộ nhãn dự đoán. Nhãn nhiễu `-1` của DBSCAN được tính như một giá trị nhãn trong hai chỉ số này, nhưng bị loại khi đếm số cụm. Tỷ lệ nhiễu được lưu riêng.
+| Dataset | α (Mean-Shift) | eps (DBSCAN) |
+|---|---:|---:|
+| blobs | 0.5 | 0.1 |
+| blobs_varied | 0.5 | 0.1 |
+| blobs_aniso | 1.5 | 0.05 |
+| moons | 1.0 | 0.2 |
+| circles | 0.5 | 0.3 |
 
-Thời gian đo chỉ bao quanh `model.fit(Xs)`, không gồm chuẩn hóa, ước lượng bandwidth hoặc bước `predict(Xs)` của GMM.
+E2 có 250 lượt fit: 5 dataset × 10 seed × 5 cấu hình. ARI và NMI được tính với toàn bộ nhãn dự đoán; nhãn nhiễu `-1` của DBSCAN được tính như một nhãn, nhưng không đếm vào số cụm. Thời gian chỉ đo bước `fit`.
 
-### Kết quả ARI trung bình
+### Kết quả ARI trung bình (seed 1–9)
 
-Nguồn: `results/e2/e2_summary.csv` của lần chạy đủ 10 seed, làm tròn bốn chữ số.
+Nguồn: `results/e2/e2_summary.csv`, làm tròn ba chữ số.
 
-| Dataset | MeanShiftCustom | KMeans | DBSCAN | GMM |
-|---|---:|---:|---:|---:|
-| blobs | 0.9103 | 0.9755 | 0.8183 | 0.9774 |
-| blobs_varied | 0.7237 | 0.7088 | 0.5109 | 0.8432 |
-| blobs_aniso | 0.7358 | 0.6797 | 0.5374 | 0.8078 |
-| moons | 0.3656 | 0.4847 | 0.9996 | 0.5046 |
-| circles | 0.1542 | -0.0006 | 0.9997 | -0.0006 |
+| Dataset | MS (h mặc định) | MS (h chọn) | KMeans | DBSCAN | GMM |
+|---|---:|---:|---:|---:|---:|
+| blobs | 0.455 | 0.902 | 0.975 | 0.888 | 0.975 |
+| blobs_varied | 0.697 | 0.750 | 0.734 | 0.633 | 0.864 |
+| blobs_aniso | 0.657 | 0.528 | 0.704 | 0.500 | 0.842 |
+| moons | 0.546 | 0.546 | 0.483 | 1.000 | 0.504 |
+| circles | 0.000 | 0.154 | -0.001 | 1.000 | -0.001 |
 
-Với cấu hình này, GMM có ARI trung bình cao nhất ở ba dạng blobs; DBSCAN cao nhất ở moons và circles. Độ ổn định giữa các seed được thể hiện trong các cột độ lệch chuẩn của bảng tổng hợp.
+Nhận xét:
+
+- GMM có ARI cao nhất ở ba dạng blobs; DBSCAN cao nhất ở moons và circles (cụm không lồi).
+- h mặc định chưa tốt trên blobs (0.455); giảm h còn 0.5·h₀ đưa ARI lên 0.902, gần K-Means/GMM dù Mean-Shift không biết số cụm.
+- Trên blobs_aniso, α = 1.5 chọn trên seed 0 lại kém hơn h mặc định ở seed 1–9 (0.528 so với 0.657): chọn tham số trên một seed dễ bị quá khớp, và độ lệch chuẩn ARI ở bộ này lớn (≈ 0.35).
+- Mean-Shift với flat kernel không tách được moons và circles, giống K-Means và GMM.
 
 ### Giới hạn diễn giải
 
 - K-Means/GMM có lợi thế biết trước số cụm (oracle-k).
-- Cấu hình được giữ cố định, chưa có quy trình tuning riêng cho từng thuật toán. Hệ số bandwidth 0.5 và eps=0.2 chưa được xác nhận là tối ưu.
-- E2 sử dụng dữ liệu chuẩn hóa và bandwidth ước lượng bằng sklearn. E1 sử dụng dữ liệu gốc và hàm `meanshift.bandwidth.estimate_bandwidth`; bandwidth của hai thí nghiệm không tương đương.
+- Mean-Shift (h chọn) và DBSCAN được chọn tham số bằng nhãn thật của seed 0; kết quả seed 1–9 không dùng nhãn để chọn.
+- E2 sử dụng dữ liệu chuẩn hóa; E1 sử dụng dữ liệu gốc, nên bandwidth của hai thí nghiệm không tương đương.
 - E1 đánh giá sự tương ứng với sklearn; E2 đánh giá sự tương ứng với nhãn thật. Khớp sklearn không bảo đảm khôi phục được nhóm thật trên mọi hình dạng dữ liệu.
-- Thời gian là phép đo fit trên môi trường cụ thể, chưa đủ để kết luận backend hoặc thuật toán nào luôn nhanh hơn.
+- Thời gian là phép đo fit trên môi trường cụ thể, chưa đủ để kết luận thuật toán nào luôn nhanh hơn.
 - Dữ liệu tổng hợp hai chiều không đủ để suy rộng kết quả sang ảnh da hoặc dữ liệu thực tế.
 
 ## Tái lập thực nghiệm
 
 Các lệnh chạy từ thư mục gốc `ML_Final`:
 
-```powershell
+```bash
 python -m pip install -r requirements.txt
 python data/make_synthetic.py
 python -m pytest tests/test_vs_sklearn.py
@@ -147,10 +161,11 @@ python experiments/e2_compare_algorithms.py
 | results/e1/e1_examples.png | MeanShiftCustom/kdtree và sklearn ở seed 0, alpha=0.5, không bin seeding |
 | results/e1/e1_density_steps.csv và các hình KDE | Mật độ và quỹ đạo chẩn đoán |
 | results/e1/e1_metadata.json | Cấu hình, phiên bản thư viện, SHA256 đầu vào và phạm vi phép đo |
+| results/e2/e2_params.csv | Tham số chọn trên seed 0 |
 | results/e2/e2_runs.csv | Chi tiết từng lượt fit |
 | results/e2/e2_summary.csv | Trung bình và độ lệch chuẩn các chỉ số |
-| results/e2/e2_examples.png | Phân cụm minh họa ở seed 0 |
-| results/e2/e2_score_comparison.png | ARI/NMI trung bình |
+| results/e2/e2_grid.png | Lưới 5 dataset × 5 cấu hình ở seed 0 |
+| results/e2/e2_ari_bar.png | ARI trung bình ± std |
 | results/e2/e2_metadata.json | Cấu hình, phiên bản thư viện và SHA256 đầu vào |
 
 `tests/test_vs_sklearn.py` kiểm tra sự tương ứng với sklearn khi dùng flat kernel, phân hoạch trên moons, seed tường minh, hai backend, điểm nhiễu và `predict`, mode đồng hạng, giới hạn số vòng lặp và cập nhật Gaussian cắt ngưỡng.

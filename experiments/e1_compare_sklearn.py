@@ -28,12 +28,11 @@ from threadpoolctl import threadpool_limits
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from meanshift import MeanShiftCustom  # noqa: E402
-from meanshift.bandwidth import estimate_bandwidth  # noqa: E402
+from meanshift import MeanShiftCustom  
+from meanshift.bandwidth import estimate_bandwidth  
+from common import DATASETS, load_synthetic, out_dir, synthetic_path  
 
-DATA = ROOT / "data" / "synthetic"
-OUT = ROOT / "results" / "e1"
-DATASETS = ["blobs", "blobs_varied", "blobs_aniso", "moons", "circles"]
+OUT = out_dir("e1")
 ALPHAS = [0.25, 0.5, 1.0]
 SEARCHES = ["brute", "kdtree"]
 
@@ -61,29 +60,15 @@ def _center_metrics(a, b, bandwidth):
             "center_error_max_penalized_over_h": float(max(distances.max() if len(distances) else 0.0, bandwidth if unmatched else 0.0) / bandwidth)}
 
 
-def _load_dataset(name, seed):
-    path = DATA / f"{name}_seed{seed}.csv"
-    if not path.is_file():
-        raise FileNotFoundError(f"Thiếu {path}; tạo dữ liệu bằng python data/make_synthetic.py")
-    frame = pd.read_csv(path)
-    if not {"x", "y", "label"}.issubset(frame.columns) or frame.empty:
-        raise ValueError(f"CSV không đúng schema x,y,label hoặc rỗng: {path}")
-    X = frame[["x", "y"]].to_numpy(dtype=np.float64)
-    y = frame["label"].to_numpy()
-    if not np.isfinite(X).all() or len(y) != len(X):
-        raise ValueError(f"Dữ liệu không hữu hạn hoặc nhãn sai kích thước: {path}")
-    return path, X, y
-
-
 def run(seeds=10):
     if seeds <= 0:
         raise ValueError("--seeds phải là số nguyên dương")
-    OUT.mkdir(parents=True, exist_ok=True)
     rows, example_cache, hashes = [], {}, {}
     with threadpool_limits(limits=1):
         for dataset in DATASETS:
             for seed in range(seeds):
-                path, X, truth = _load_dataset(dataset, seed)
+                path = synthetic_path(dataset, seed)
+                X, truth = load_synthetic(dataset, seed)
                 hashes[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
                 base_h = estimate_bandwidth(X, quantile=0.3)
                 if not np.isfinite(base_h) or base_h <= 0:
@@ -166,7 +151,7 @@ def run(seeds=10):
     plt.close(fig)
 
     # Full-support Gaussian KDE with the custom finite-cutoff Gaussian trajectory.
-    _, X, _ = _load_dataset("blobs", 0)
+    X, _ = load_synthetic("blobs", 0)
     h_diag = 0.5 * estimate_bandwidth(X, quantile=0.3)
     gx, gy = np.meshgrid(np.linspace(X[:, 0].min()-0.5, X[:, 0].max()+0.5, 100),
                          np.linspace(X[:, 1].min()-0.5, X[:, 1].max()+0.5, 100))
