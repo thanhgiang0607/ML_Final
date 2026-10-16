@@ -14,3 +14,4 @@ results/**
 !results/**/*_params.csv
 !results/**/*_metadata.json
 !results/**/*.png
+!results/**/env.txt
