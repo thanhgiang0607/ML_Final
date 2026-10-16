@@ -6,6 +6,11 @@ __pycache__/
 data/isic2018/
 # Dữ liệu giả: sinh lại bằng data/make_synthetic.py
 data/synthetic/
-# Kết quả thực nghiệm: sinh lại bằng experiments/*.py
-results/*
+# Kết quả thực nghiệm: chỉ đưa lên bảng tổng hợp, hình và metadata
+results/**
+!results/*/
 !results/.gitkeep
+!results/**/*_summary.csv
+!results/**/*_params.csv
+!results/**/*_metadata.json
+!results/**/*.png

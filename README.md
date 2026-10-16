@@ -53,7 +53,7 @@ python3 experiments/e1_compare_sklearn.py     # E1 – đối chiếu sklearn (-
 python3 experiments/e2_compare_algorithms.py  # E2 – so với K-Means, DBSCAN, GMM
 ```
 
-Kết quả lưu ở `results/eX/` (không lên git). Thiết kế và kết quả E1, E2: [`report/THUC_NGHIEM_E1_E2.md`](report/THUC_NGHIEM_E1_E2.md).
+Kết quả lưu ở `results/eX/` (chỉ hình, bảng tổng hợp và metadata lên git). Thiết kế và kết quả E1, E2: [`report/THUC_NGHIEM_E1_E2.md`](report/THUC_NGHIEM_E1_E2.md).
 
 ## Dùng thử
 

@@ -182,7 +182,7 @@ for image_id in load_split("tune"):
 5. **Đo thời gian**: `time.perf_counter()`, lặp 3 lần lấy **trung vị**. sklearn luôn chạy `n_jobs=1` cho công bằng.
 6. **In tóm tắt ra màn hình** khi chạy xong (vài dòng số liệu chính).
 7. **Viết** `report/THUC_NGHIEM_EX.md` (có lên git): cấu hình đã chạy, bảng số liệu chính, nhận xét, giới hạn → dùng để viết báo cáo. Mẫu: `report/THUC_NGHIEM_E1_E2.md`.
-8. `results/` không lên git. **Hình/bảng chốt cuối cùng** chép vào `report/figures/` và `report/tables/` (có lên git) để A ghép báo cáo.
+8. **Kết quả nào lên git** (đã cấu hình trong `.gitignore`): trong `results/eX/` chỉ đưa lên `*.png`, `*_summary.csv`, `*_params.csv`, `*_metadata.json`. `*_runs.csv`, mask và ảnh phân đoạn từng ảnh ISIC thì không lên git, vì chạy lại script là có. Commit kết quả **cùng PR với script** đã sinh ra nó. Không cần chép hình sang `report/figures/` nữa, báo cáo trỏ thẳng tới `results/eX/`.
 9. Script trong `experiments/` không bắt buộc có test, nhưng vẫn đi qua PR và review như giai đoạn 1.
 10. **Chọn tham số trên nhiều seed/ảnh, không chỉ 1.** Bài học từ E2: trên blobs_aniso, α chọn theo seed 0 lại kém h mặc định ở seed 1–9 (ARI 0.528 so với 0.657). Khi chọn h (E4, E5, E6) nên lấy trung bình trên nhiều seed/ảnh, và **báo cáo kết quả trên phần dữ liệu không dùng để chọn**.
 
@@ -391,7 +391,7 @@ for image_id in load_split("tune"):
 
 - [ ] 6 script chạy được bằng 1 lệnh, đã merge vào `main`.
 - [ ] Mỗi `results/eX/` có đủ file ở bảng trên; mỗi thực nghiệm có `report/THUC_NGHIEM_EX.md`.
-- [ ] Hình/bảng chốt đã chép vào `report/figures/`, `report/tables/`.
+- [ ] Hình và bảng tổng hợp trong `results/eX/` đã lên git (quy ước 8).
 - [ ] Mỗi RQ1–RQ5 có ít nhất 1 bảng hoặc 1 hình trả lời.
 
 
