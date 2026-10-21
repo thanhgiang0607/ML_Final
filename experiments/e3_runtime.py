@@ -79,7 +79,7 @@ METHOD_LABELS = {
     "sklearn_bin": "sklearn (bin seeding on)",
 }
 RAW_FIELDS = [
-    "experiment", "n", "h", "alpha", "method", "repeat", "random_state",
+    "experiment", "n", "h", "alpha", "method", "measurement", "repeat", "random_state",
     "elapsed_s", "peak_memory_mb", "n_seeds", "n_clusters",
     "neighbor_queries", "mean_neighbors_per_query", "mean_iterations",
     "status", "error",
@@ -181,10 +181,12 @@ def write_environment(out_dir: Path) -> dict[str, Any]:
         "scipy": scipy.__version__,
         "scikit_learn": sklearn_version,
         "script": "experiments/e3_runtime.py",
-        "memory_measurement": (
-            "tracemalloc peak Python-traced memory during estimator.fit(X); "
-            "not total native/process RSS"
+        "measurement_protocol": (
+            "runtime: perf_counter around fit with no tracemalloc/wrappers; "
+            "memory: separate tracemalloc fit with no wrappers; "
+            "diagnostics: separate fit with neighbor/iteration wrappers"
         ),
+        "memory_measurement": "tracemalloc peak Python-traced memory; not total native/process RSS",
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -197,7 +199,10 @@ def write_environment(out_dir: Path) -> dict[str, Any]:
         f"NumPy: {env['numpy']}",
         f"SciPy: {env['scipy']}",
         f"scikit-learn: {env['scikit_learn']}",
-        "Memory metric: tracemalloc peak during fit; native allocations may not be fully captured.",
+        "Timing: separate fit runs without tracemalloc and without measurement wrappers.",
+        "Memory: one separate fit run with tracemalloc; no measurement wrappers.",
+        "Diagnostics: separate fit run with neighbor/iteration wrappers; its time is not reported as runtime.",
+        "Memory metric: Python-traced peak; native allocations may not be fully captured.",
     ]
     (out_dir / "env.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return env
@@ -313,14 +318,30 @@ def _make_estimator(method: str, h: float, cfg: dict[str, Any]):
     raise ValueError(f"Unknown method: {method}")
 
 
-def _fit_worker(conn, X: np.ndarray, method: str, h: float, cfg: dict[str, Any]) -> None:
-    """Child process isolates each fit so the 600s timeout can be enforced."""
+def _fit_worker(
+    conn,
+    X: np.ndarray,
+    method: str,
+    h: float,
+    cfg: dict[str, Any],
+    measurement: str,
+) -> None:
+    """Run one isolated fit for one measurement type.
+
+    measurement='time': no tracemalloc and no instrumentation wrappers.
+    measurement='memory': tracemalloc only; no instrumentation wrappers.
+    measurement='diagnostics': neighbor/iteration wrappers only; no tracemalloc.
+    """
     import tracemalloc
 
     try:
+        if measurement not in {"time", "memory", "diagnostics"}:
+            raise ValueError(f"measurement không hợp lệ: {measurement}")
+
         with warnings.catch_warnings():
             warnings.simplefilter("default")
             estimator = _make_estimator(method, h, cfg)
+            # This bookkeeping is outside the timed/memory-traced fit.
             n_seeds = _estimate_seed_count(X, h, method)
             stats: dict[str, Any] = {
                 "neighbor_queries": 0,
@@ -329,8 +350,9 @@ def _fit_worker(conn, X: np.ndarray, method: str, h: float, cfg: dict[str, Any])
             }
             restore_actions = []
 
-            # Instrument custom radius queries to collect actual neighbor counts.
-            if method.startswith("custom"):
+            # Instrument radius queries ONLY for the diagnostic pass. These
+            # wrappers must not affect either runtime or memory measurements.
+            if measurement == "diagnostics" and method.startswith("custom"):
                 try:
                     neighbor_module = importlib.import_module("meanshift.neighbors")
                     for cls_name in ("BruteForceSearch", "KDTreeSearch"):
@@ -348,7 +370,7 @@ def _fit_worker(conn, X: np.ndarray, method: str, h: float, cfg: dict[str, Any])
                         restore_actions.append((cls, "query_radius", original))
                 except Exception:
                     pass
-            else:
+            elif measurement == "diagnostics" and method in {"sklearn", "sklearn_bin"}:
                 # sklearn's MeanShift uses radius_neighbors inside each seed trajectory.
                 try:
                     sk_ms = importlib.import_module("sklearn.cluster._mean_shift")
@@ -379,16 +401,23 @@ def _fit_worker(conn, X: np.ndarray, method: str, h: float, cfg: dict[str, Any])
                 except Exception:
                     pass
 
-            # Signal the parent immediately before the timed fit.
+            # Start the timeout clock immediately before the requested measurement.
             conn.send({"event": "started"})
-            tracemalloc.start()
-            start = time.perf_counter()
+            elapsed = float("nan")
+            peak_bytes = float("nan")
+            if measurement == "memory":
+                tracemalloc.start()
+            start = time.perf_counter() if measurement == "time" else None
             try:
                 estimator.fit(X)
             finally:
-                elapsed = time.perf_counter() - start
-                _current, peak_bytes = tracemalloc.get_traced_memory()
-                tracemalloc.stop()
+                if measurement == "time" and start is not None:
+                    elapsed = time.perf_counter() - start
+                if measurement == "memory":
+                    try:
+                        _current, peak_bytes = tracemalloc.get_traced_memory()
+                    finally:
+                        tracemalloc.stop()
                 for obj, attr, original in reversed(restore_actions):
                     setattr(obj, attr, original)
 
@@ -405,9 +434,8 @@ def _fit_worker(conn, X: np.ndarray, method: str, h: float, cfg: dict[str, Any])
                     n_clusters = int(len(np.unique(labels[labels >= 0])))
 
             mean_iterations = float("nan")
-            # MeanShiftCustom exposes seed_n_iter_ (per-seed values) and
-            # n_iter_ (the maximum). Prefer per-seed data so this CSV field is
-            # genuinely a mean rather than accidentally reporting the maximum.
+            # MeanShiftCustom exposes per-seed iteration counts. In sklearn,
+            # per-seed counts are captured only in the diagnostic pass.
             per_seed_iterations = getattr(estimator, "seed_n_iter_", None)
             if per_seed_iterations is None:
                 per_seed_iterations = getattr(estimator, "n_iter_", None)
@@ -422,12 +450,21 @@ def _fit_worker(conn, X: np.ndarray, method: str, h: float, cfg: dict[str, Any])
                 mean_iterations = float(np.mean(stats["iterations"]))
 
             n_queries, mean_neighbors = _mean_neighbor_stats(stats)
+            # Do not populate metrics from a measurement pass that was not
+            # designed to estimate them.
+            if measurement != "diagnostics":
+                n_queries, mean_neighbors = 0, float("nan")
+            if measurement != "memory":
+                peak_bytes = float("nan")
+            if measurement != "time":
+                elapsed = float("nan")
+
             conn.send({
                 "event": "result",
                 "data": {
                     "status": "ok",
                     "elapsed_s": float(elapsed),
-                    "peak_memory_mb": float(peak_bytes / (1024 ** 2)),
+                    "peak_memory_mb": float(peak_bytes / (1024 ** 2)) if math.isfinite(float(peak_bytes)) else float("nan"),
                     "n_seeds": int(n_seeds),
                     "n_clusters": int(n_clusters),
                     "neighbor_queries": int(n_queries),
@@ -460,38 +497,55 @@ def _fit_worker(conn, X: np.ndarray, method: str, h: float, cfg: dict[str, Any])
         except Exception:
             pass
 
-def _safe_poll(conn, timeout=0):
-    try:
-        return conn.poll(timeout)
-    except (EOFError, OSError):
-        # Pipe đã đóng hoặc worker kết thúc bất thường.
-        return False
 
 def fit_with_timeout(
-    X: np.ndarray, method: str, h: float, cfg: dict[str, Any], timeout_seconds: float
+    X: np.ndarray,
+    method: str,
+    h: float,
+    cfg: dict[str, Any],
+    timeout_seconds: float,
+    measurement: str = "time",
 ) -> dict[str, Any]:
-    """Run one fit in a child process and enforce timeout on the fit itself."""
+    """Run one measurement in a child process and enforce its timeout.
+
+    On Windows, a child process may close its pipe before the parent polls it.
+    Connection.poll() can then raise BrokenPipeError/EOFError instead of simply
+    returning False. Treat that as a worker communication failure and report it
+    in the CSV, rather than crashing the entire benchmark.
+    """
     ctx = mp.get_context("spawn")
     parent_conn, child_conn = ctx.Pipe(duplex=False)
-    proc = ctx.Process(target=_fit_worker, args=(child_conn, X, method, float(h), cfg))
+    proc = ctx.Process(
+        target=_fit_worker,
+        args=(child_conn, X, method, float(h), cfg, measurement),
+    )
     proc.start()
     child_conn.close()
     fit_started_at: float | None = None
     result = None
     timed_out = False
+    pipe_error: str | None = None
 
     try:
         while proc.is_alive():
-            if _safe_poll(parent_conn, 0.1):
+            try:
+                ready = parent_conn.poll(0.1)
+            except (EOFError, OSError, ValueError) as exc:
+                pipe_error = f"Pipe bị đóng khi chờ worker: {type(exc).__name__}: {exc}"
+                break
+
+            if ready:
                 try:
                     message = parent_conn.recv()
-                except EOFError:
-                    message = None
+                except (EOFError, OSError, ValueError) as exc:
+                    pipe_error = f"Không đọc được dữ liệu từ worker: {type(exc).__name__}: {exc}"
+                    break
                 if message:
                     if message.get("event") == "started":
                         fit_started_at = time.monotonic()
                     elif message.get("event") == "result":
                         result = message.get("data")
+
             if fit_started_at is not None and time.monotonic() - fit_started_at > timeout_seconds:
                 timed_out = True
                 proc.terminate()
@@ -500,39 +554,67 @@ def fit_with_timeout(
                     proc.kill()
                     proc.join(timeout=3)
                 break
+
         proc.join(timeout=1)
-        # A result message may already be waiting after the process exits.
-        while _safe_poll(parent_conn):
+
+        # Drain any result message that was sent just before the child exited.
+        while True:
+            try:
+                ready = parent_conn.poll(0)
+            except (EOFError, OSError, ValueError) as exc:
+                if pipe_error is None:
+                    pipe_error = f"Pipe đóng khi đọc kết quả cuối: {type(exc).__name__}: {exc}"
+                break
+            if not ready:
+                break
             try:
                 message = parent_conn.recv()
-            except EOFError:
+            except (EOFError, OSError, ValueError) as exc:
+                if pipe_error is None:
+                    pipe_error = f"Không đọc được kết quả cuối: {type(exc).__name__}: {exc}"
                 break
             if message and message.get("event") == "result":
                 result = message.get("data")
     finally:
-        parent_conn.close()
+        try:
+            parent_conn.close()
+        except OSError:
+            pass
         if proc.is_alive():
             proc.terminate()
             proc.join(timeout=2)
+            if proc.is_alive() and hasattr(proc, "kill"):
+                proc.kill()
+                proc.join(timeout=2)
 
     if timed_out:
         return {
-            "status": "timeout", "elapsed_s": float(timeout_seconds),
-            "peak_memory_mb": float("nan"), "n_seeds": -1, "n_clusters": -1,
-            "neighbor_queries": 0, "mean_neighbors_per_query": float("nan"),
+            "status": "timeout",
+            "elapsed_s": float(timeout_seconds) if measurement == "time" else float("nan"),
+            "peak_memory_mb": float("nan"),
+            "n_seeds": -1,
+            "n_clusters": -1,
+            "neighbor_queries": 0,
+            "mean_neighbors_per_query": float("nan"),
             "mean_iterations": float("nan"),
-            "error": f"quá thời gian (> {timeout_seconds:g} giây)",
+            "error": f"quá thời gian (> {timeout_seconds:g} giây) ở lượt đo {measurement}",
         }
     if result is None:
+        details = f"Worker kết thúc mà không trả kết quả (exitcode={proc.exitcode})."
+        if pipe_error:
+            details += f" Chi tiết pipe: {pipe_error}"
         return {
-            "status": "error", "elapsed_s": float("nan"),
-            "peak_memory_mb": float("nan"), "n_seeds": -1, "n_clusters": -1,
-            "neighbor_queries": 0, "mean_neighbors_per_query": float("nan"),
+            "status": "error",
+            "elapsed_s": float("nan"),
+            "peak_memory_mb": float("nan"),
+            "n_seeds": -1,
+            "n_clusters": -1,
+            "neighbor_queries": 0,
+            "mean_neighbors_per_query": float("nan"),
             "mean_iterations": float("nan"),
-            "error": f"Worker kết thúc bất thường (exitcode={proc.exitcode}) mà không trả kết quả.",
+            "error": details,
         }
     return result
-
 
 def _to_csv_value(value: Any) -> Any:
     if isinstance(value, (np.integer,)):
@@ -547,14 +629,24 @@ def _append_row(writer: csv.DictWriter, file_obj, row: dict[str, Any]) -> None:
     file_obj.flush()
 
 
-def _base_row(experiment: str, n: int, h: float, alpha: float | None,
-              method: str, repeat: int, random_state: int, result: dict[str, Any]) -> dict[str, Any]:
+def _base_row(
+    experiment: str,
+    n: int,
+    h: float,
+    alpha: float | None,
+    method: str,
+    measurement: str,
+    repeat: int,
+    random_state: int,
+    result: dict[str, Any],
+) -> dict[str, Any]:
     row = {
         "experiment": experiment,
         "n": int(n),
         "h": float(h),
         "alpha": "" if alpha is None else float(alpha),
         "method": method,
+        "measurement": measurement,
         "repeat": int(repeat),
         "random_state": int(random_state),
     }
@@ -564,11 +656,110 @@ def _base_row(experiment: str, n: int, h: float, alpha: float | None,
 
 def _skipped_result(status: str, reason: str) -> dict[str, Any]:
     return {
-        "status": status, "elapsed_s": float("nan"), "peak_memory_mb": float("nan"),
-        "n_seeds": -1, "n_clusters": -1, "neighbor_queries": 0,
-        "mean_neighbors_per_query": float("nan"), "mean_iterations": float("nan"),
+        "status": status,
+        "elapsed_s": float("nan"),
+        "peak_memory_mb": float("nan"),
+        "n_seeds": -1,
+        "n_clusters": -1,
+        "neighbor_queries": 0,
+        "mean_neighbors_per_query": float("nan"),
+        "mean_iterations": float("nan"),
         "error": reason,
     }
+
+
+def _append_result_row(writer, file_obj, all_rows, experiment, n, h, alpha,
+                       method, measurement, repeat, random_state, result):
+    row = _base_row(experiment, n, h, alpha, method, measurement, repeat, random_state, result)
+    _append_row(writer, file_obj, row)
+    all_rows.append(row)
+    return row
+
+
+def _append_skipped_config(writer, file_obj, all_rows, experiment, n, h, alpha,
+                           method, random_state, repeats, reason):
+    """Write explicit placeholders for all planned measurement types."""
+    for repeat in range(1, repeats + 1):
+        _append_result_row(
+            writer, file_obj, all_rows, experiment, n, h, alpha, method,
+            "time", repeat, random_state,
+            _skipped_result("skipped_after_timeout", reason),
+        )
+    for measurement in ("memory", "diagnostics"):
+        _append_result_row(
+            writer, file_obj, all_rows, experiment, n, h, alpha, method,
+            measurement, 0, random_state,
+            _skipped_result("skipped_after_timeout", reason),
+        )
+
+
+def _run_one_config(writer, file_obj, all_rows, X, cfg, experiment, n, h, alpha,
+                    method, random_state, repeats, timeout):
+    """Time N uninstrumented fits, then one memory fit, then one diagnostics fit.
+
+    Returns True when a timeout requires skipping larger n (or larger alpha).
+    """
+    for repeat in range(1, repeats + 1):
+        result = fit_with_timeout(X, method, h, cfg, timeout, measurement="time")
+        _append_result_row(
+            writer, file_obj, all_rows, experiment, n, h, alpha, method,
+            "time", repeat, random_state, result,
+        )
+        print(
+            f"[E3:{experiment}:time] method={method:18s} n={n:6d} "
+            f"alpha={alpha if alpha is not None else '-'} repeat={repeat}/{repeats} "
+            f"status={result['status']} time={result['elapsed_s'] if math.isfinite(float(result['elapsed_s'])) else 'NA'}",
+            flush=True,
+        )
+        if result["status"] == "timeout":
+            for remaining in range(repeat + 1, repeats + 1):
+                _append_result_row(
+                    writer, file_obj, all_rows, experiment, n, h, alpha, method,
+                    "time", remaining, random_state,
+                    _skipped_result("skipped_after_timeout", "bỏ lượt thời gian còn lại sau timeout"),
+                )
+            for measurement in ("memory", "diagnostics"):
+                _append_result_row(
+                    writer, file_obj, all_rows, experiment, n, h, alpha, method,
+                    measurement, 0, random_state,
+                    _skipped_result("skipped_after_timeout", "bỏ phép đo riêng sau timeout ở phép đo thời gian"),
+                )
+            return True
+
+    # Memory is measured in a separate fit, with tracemalloc but no counters/wrappers.
+    mem_result = fit_with_timeout(X, method, h, cfg, timeout, measurement="memory")
+    _append_result_row(
+        writer, file_obj, all_rows, experiment, n, h, alpha, method,
+        "memory", 0, random_state, mem_result,
+    )
+    print(
+        f"[E3:{experiment}:memory] method={method:18s} n={n:6d} "
+        f"alpha={alpha if alpha is not None else '-'} status={mem_result['status']} "
+        f"peak_MB={mem_result['peak_memory_mb'] if math.isfinite(float(mem_result['peak_memory_mb'])) else 'NA'}",
+        flush=True,
+    )
+    if mem_result["status"] == "timeout":
+        _append_result_row(
+            writer, file_obj, all_rows, experiment, n, h, alpha, method,
+            "diagnostics", 0, random_state,
+            _skipped_result("skipped_after_timeout", "bỏ phép đo chẩn đoán sau timeout đo bộ nhớ"),
+        )
+        return True
+
+    # Neighbor and sklearn per-seed iteration instrumentation is isolated from
+    # both official time and memory figures to avoid measurement overhead.
+    diag_result = fit_with_timeout(X, method, h, cfg, timeout, measurement="diagnostics")
+    _append_result_row(
+        writer, file_obj, all_rows, experiment, n, h, alpha, method,
+        "diagnostics", 0, random_state, diag_result,
+    )
+    print(
+        f"[E3:{experiment}:diagnostics] method={method:18s} n={n:6d} "
+        f"alpha={alpha if alpha is not None else '-'} status={diag_result['status']} "
+        f"mean_neighbors={diag_result['mean_neighbors_per_query'] if math.isfinite(float(diag_result['mean_neighbors_per_query'])) else 'NA'}",
+        flush=True,
+    )
+    return diag_result["status"] == "timeout"
 
 
 def _run_sweep_n(writer: csv.DictWriter, f, cfg: dict[str, Any], h0: float,
@@ -580,42 +771,22 @@ def _run_sweep_n(writer: csv.DictWriter, f, cfg: dict[str, Any], h0: float,
         stop_larger_n = False
         for n in n_values:
             if stop_larger_n:
-                for repeat in range(1, repeats + 1):
-                    row = _base_row(
-                        "n", n, h0, None, method, repeat, random_state,
-                        _skipped_result("skipped_after_timeout", "bỏ n lớn hơn sau timeout của biến thể này"),
-                    )
-                    _append_row(writer, f, row)
-                    all_rows.append(row)
+                _append_skipped_config(
+                    writer, f, all_rows, "n", n, h0, None, method,
+                    random_state, repeats,
+                    "bỏ n lớn hơn sau timeout của biến thể này",
+                )
                 continue
-
             X, _ = make_blobs(
                 n_samples=int(n), centers=int(ds.get("centers", 5)),
                 cluster_std=float(ds.get("cluster_std", 1.0)),
                 random_state=random_state, n_features=int(ds.get("dimensions", 2)),
             )
-            timeout_at_this_n = False
-            for repeat in range(1, repeats + 1):
-                result = fit_with_timeout(X, method, h0, cfg, timeout)
-                row = _base_row("n", n, h0, None, method, repeat, random_state, result)
-                _append_row(writer, f, row)
-                all_rows.append(row)
-                print(
-                    f"[E3:n] method={method:18s} n={n:6d} repeat={repeat}/{repeats} "
-                    f"status={result['status']} time={result['elapsed_s'] if math.isfinite(float(result['elapsed_s'])) else 'NA'}",
-                    flush=True,
-                )
-                if result["status"] == "timeout":
-                    timeout_at_this_n = True
-                    for remaining in range(repeat + 1, repeats + 1):
-                        skipped = _base_row(
-                            "n", n, h0, None, method, remaining, random_state,
-                            _skipped_result("skipped_after_timeout", "bỏ lượt lặp còn lại sau timeout"),
-                        )
-                        _append_row(writer, f, skipped)
-                        all_rows.append(skipped)
-                    break
-            if timeout_at_this_n:
+            timed_out = _run_one_config(
+                writer, f, all_rows, X, cfg, "n", int(n), h0, None,
+                method, random_state, repeats, timeout,
+            )
+            if timed_out:
                 stop_larger_n = True
     return all_rows
 
@@ -635,41 +806,19 @@ def _run_sweep_h(writer: csv.DictWriter, f, cfg: dict[str, Any], h0: float,
         for alpha in alphas:
             h = float(alpha) * float(h0)
             if stop_larger_alpha:
-                for repeat in range(1, repeats + 1):
-                    row = _base_row(
-                        "h", n, h, alpha, method, repeat, random_state,
-                        _skipped_result("skipped_after_timeout", "bỏ các alpha lớn hơn sau timeout của biến thể này"),
-                    )
-                    _append_row(writer, f, row)
-                    all_rows.append(row)
-                continue
-            timeout_at_alpha = False
-            for repeat in range(1, repeats + 1):
-                result = fit_with_timeout(X, method, h, cfg, timeout)
-                row = _base_row("h", n, h, alpha, method, repeat, random_state, result)
-                _append_row(writer, f, row)
-                all_rows.append(row)
-                print(
-                    f"[E3:h] method={method:18s} n={n:6d} alpha={alpha:g} h={h:.6g} "
-                    f"repeat={repeat}/{repeats} status={result['status']} "
-                    f"time={result['elapsed_s'] if math.isfinite(float(result['elapsed_s'])) else 'NA'}",
-                    flush=True,
+                _append_skipped_config(
+                    writer, f, all_rows, "h", n, h, alpha, method,
+                    random_state, repeats,
+                    "bỏ alpha lớn hơn sau timeout của biến thể này",
                 )
-                if result["status"] == "timeout":
-                    timeout_at_alpha = True
-                    for remaining in range(repeat + 1, repeats + 1):
-                        skipped = _base_row(
-                            "h", n, h, alpha, method, remaining, random_state,
-                            _skipped_result("skipped_after_timeout", "bỏ lượt lặp còn lại sau timeout"),
-                        )
-                        _append_row(writer, f, skipped)
-                        all_rows.append(skipped)
-                    break
-            # Additional safety: after a timeout at h, skip larger alpha values for this method.
-            if timeout_at_alpha:
+                continue
+            timed_out = _run_one_config(
+                writer, f, all_rows, X, cfg, "h", int(n), h, float(alpha),
+                method, random_state, repeats, timeout,
+            )
+            if timed_out:
                 stop_larger_alpha = True
     return all_rows
-
 
 def _numeric(rows: list[dict[str, Any]], field: str) -> np.ndarray:
     vals = []
@@ -690,31 +839,48 @@ def summarize(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         key = tuple(row.get(k, "") for k in key_fields)
         groups.setdefault(key, []).append(row)
 
+    def quantiles(values: np.ndarray) -> tuple[float, float, float, float]:
+        if values.size == 0:
+            return (float("nan"),) * 4
+        median = float(np.percentile(values, 50))
+        # Memory is measured once per configuration; do not imply that its
+        # quartiles/IQR are meaningful with a single observation.
+        if values.size == 1:
+            return median, float("nan"), float("nan"), float("nan")
+        q1, q3 = np.percentile(values, [25, 75])
+        return median, float(q1), float(q3), float(q3 - q1)
+
     summary: list[dict[str, Any]] = []
     for key, group in groups.items():
-        good = [r for r in group if r.get("status") == "ok"]
-        time_vals = _numeric(good, "elapsed_s")
-        mem_vals = _numeric(good, "peak_memory_mb")
-        seed_vals = _numeric(good, "n_seeds")
-        cluster_vals = _numeric(good, "n_clusters")
-        neighbor_vals = _numeric(good, "mean_neighbors_per_query")
-        iter_vals = _numeric(good, "mean_iterations")
+        timing_rows = [r for r in group if r.get("measurement") == "time" and r.get("status") == "ok"]
+        memory_rows = [r for r in group if r.get("measurement") == "memory" and r.get("status") == "ok"]
+        diagnostic_rows = [r for r in group if r.get("measurement") == "diagnostics" and r.get("status") == "ok"]
 
-        def quantiles(values: np.ndarray) -> tuple[float, float, float, float]:
-            if values.size == 0:
-                return (float("nan"),) * 4
-            q1, med, q3 = np.percentile(values, [25, 50, 75])
-            return float(med), float(q1), float(q3), float(q3 - q1)
+        time_vals = _numeric(timing_rows, "elapsed_s")
+        mem_vals = _numeric(memory_rows, "peak_memory_mb")
+        seed_vals = _numeric(timing_rows, "n_seeds")
+        cluster_vals = _numeric(timing_rows, "n_clusters")
+        neighbor_vals = _numeric(diagnostic_rows, "mean_neighbors_per_query")
+        iter_vals = _numeric(diagnostic_rows, "mean_iterations")
 
         med_t, q1_t, q3_t, iqr_t = quantiles(time_vals)
         med_m, q1_m, q3_m, iqr_m = quantiles(mem_vals)
-        status = "ok" if good else next((r.get("status", "unknown") for r in group), "unknown")
+        time_rows_any = [r for r in group if r.get("measurement") == "time"]
+        status = "ok" if time_vals.size else next(
+            (r.get("status", "unknown") for r in time_rows_any),
+            next((r.get("status", "unknown") for r in group), "unknown"),
+        )
         summary.append({
             **dict(zip(key_fields, key)),
-            "successful_runs": int(len(good)),
-            "median_time_s": med_t, "q1_time_s": q1_t, "q3_time_s": q3_t, "iqr_time_s": iqr_t,
-            "median_peak_memory_mb": med_m, "q1_peak_memory_mb": q1_m,
-            "q3_peak_memory_mb": q3_m, "iqr_peak_memory_mb": iqr_m,
+            "successful_runs": int(time_vals.size),
+            "median_time_s": med_t,
+            "q1_time_s": q1_t,
+            "q3_time_s": q3_t,
+            "iqr_time_s": iqr_t,
+            "median_peak_memory_mb": med_m,
+            "q1_peak_memory_mb": q1_m,
+            "q3_peak_memory_mb": q3_m,
+            "iqr_peak_memory_mb": iqr_m,
             "speedup_vs_custom_brute": float("nan"),
             "median_n_seeds": float(np.median(seed_vals)) if seed_vals.size else float("nan"),
             "median_n_clusters": float(np.median(cluster_vals)) if cluster_vals.size else float("nan"),
@@ -723,8 +889,7 @@ def summarize(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "status": status,
         })
 
-    # Speedup baseline: custom brute for the same experiment/n/h/alpha.
-    by_key = {}
+    by_key: dict[tuple[Any, ...], dict[str, dict[str, Any]]] = {}
     for row in summary:
         k = (row["experiment"], row["n"], row["h"], row["alpha"])
         by_key.setdefault(k, {})[row["method"]] = row
@@ -740,7 +905,6 @@ def summarize(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if isinstance(t, (int, float)) and math.isfinite(float(t)) and float(t) > 0:
                 row["speedup_vs_custom_brute"] = float(base_time) / float(t)
     return sorted(summary, key=lambda r: (r["experiment"], str(r["method"]), float(r["n"]), float(r["h"])))
-
 
 def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
     with path.open("w", newline="", encoding="utf-8-sig") as f:
@@ -844,6 +1008,14 @@ def write_report(report_path: Path, cfg: dict[str, Any], h0: float, env: dict[st
     n_values = cfg["n_sweep"]["values"]
     h_sweep = cfg["h_sweep"]
     alphas = h_sweep["alphas"]
+
+    def fmt(value: Any, digits: int = 4) -> str:
+        try:
+            number = float(value)
+            return f"{number:.{digits}g}" if math.isfinite(number) else "—"
+        except (TypeError, ValueError):
+            return "—"
+
     lines = [
         "# Thực nghiệm E3 — Tốc độ và bộ nhớ",
         "",
@@ -852,90 +1024,308 @@ def write_report(report_path: Path, cfg: dict[str, Any], h0: float, env: dict[st
         "",
         "## 2. Cấu hình thực nghiệm",
         f"- Dữ liệu: `make_blobs`, centers={cfg['dataset'].get('centers', 5)}, cluster_std={cfg['dataset'].get('cluster_std', 1.0)}, d={cfg['dataset'].get('dimensions', 2)}, random_state={cfg['dataset'].get('random_state', 0)}.",
-        f"- Bandwidth tham chiếu: h0={h0:.8g}, ước lượng một lần trên mẫu n={cfg['dataset'].get('reference_n', 2000)} điểm với quantile={cfg['dataset'].get('bandwidth_quantile', 0.3)}.",
+        f"- Bandwidth tham chiếu: h0={h0:.8g}, ước lượng một lần trên mẫu n={cfg['dataset'].get('reference_n', 2000)} điểm với quantile={cfg['dataset'].get('bandwidth_quantile', 0.1)}.",
         f"- Quét n: {', '.join(str(x) for x in n_values)}; giữ h=h0.",
         f"- Quét h: n={h_sweep['n']}; alpha={', '.join(str(a) for a in alphas)}; h=alpha*h0.",
-        f"- Số lần lặp theo cấu hình hiện tại: {repeats}; timeout fit: {timeout:g} giây/lượt.",
+        f"- Số lượt đo thời gian mỗi cấu hình: {repeats}; timeout: {timeout:g} giây cho từng lượt fit.",
         "- Các biến thể: Custom brute; Custom KD-Tree; Custom KD-Tree + bin seeding; sklearn MeanShift (bin seeding off/on, n_jobs=1).",
-        "- Đo thời gian bằng `time.perf_counter()`; bộ nhớ đỉnh bằng `tracemalloc` bắt đầu trước `fit(X)`. Báo cáo median và IQR.",
+        "- **Thời gian:** `time.perf_counter()` quanh `fit(X)`, lặp N lần, không bật `tracemalloc` và không gắn wrapper thống kê; báo cáo median và IQR.",
+        "- **Bộ nhớ:** một lượt `fit(X)` riêng cho mỗi cấu hình, bật `tracemalloc` ngay trước fit và không gắn wrapper thống kê. IQR bộ nhớ không báo cáo khi chỉ có một quan sát.",
+        "- **Chẩn đoán:** một lượt fit riêng không bật `tracemalloc`; chỉ lượt này gắn wrapper để đếm truy vấn/láng giềng và số vòng lặp. Thời gian của lượt chẩn đoán không dùng trong benchmark.",
         f"- Môi trường: CPU {env['cpu']}; RAM tổng (GB) {env['ram_gb']}; Python {env['python']}; NumPy {env['numpy']}; SciPy {env['scipy']}; scikit-learn {env['scikit_learn']}.",
         "",
         "## 3. Kết quả tóm tắt",
-        "Bảng chi tiết nằm ở `../results/e3/e3_summary.csv`; dữ liệu từng lượt chạy ở `../results/e3/e3_runs.csv` (không commit theo quy ước nhóm).",
+        "Bảng chi tiết nằm ở `../results/e3/e3_summary.csv`; từng phép đo nằm ở `../results/e3/e3_runs.csv` (không commit theo quy ước nhóm).",
         "",
-        "### 3.1. Thời gian theo n",
-        "| n | Custom brute (s) | Custom KD-Tree (s) | KD-Tree + bin seeding (s) | sklearn off (s) | sklearn on (s) |",
-        "|---:|---:|---:|---:|---:|---:|",
+        "### 3.1. Thời gian, bộ nhớ và số cụm theo n",
+        "Bảng có cột **Số cụm trung vị** để kiểm tra bandwidth có đang gộp quá nhiều cụm hay không.",
+        "",
+        "| n | Phương pháp | Median thời gian (s) | IQR thời gian (s) | Bộ nhớ đỉnh (MB) | Số cụm trung vị | Số seed trung vị | Láng giềng TB/truy vấn | Vòng lặp TB |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for n in n_values:
-        vals = []
         for method in METHODS:
             r = _summary_value(summary_rows, "n", method, n=int(n))
-            vals.append(f"{float(r['median_time_s']):.4g}" if r else "—")
-        lines.append("| " + str(n) + " | " + " | ".join(vals) + " |")
+            if r:
+                lines.append(
+                    f"| {int(n)} | {METHOD_LABELS[method]} | {fmt(r.get('median_time_s'))} | {fmt(r.get('iqr_time_s'))} | "
+                    f"{fmt(r.get('median_peak_memory_mb'))} | {fmt(r.get('median_n_clusters'), 3)} | "
+                    f"{fmt(r.get('median_n_seeds'), 3)} | {fmt(r.get('mean_neighbors_per_query'))} | {fmt(r.get('mean_iterations'))} |"
+                )
+            else:
+                lines.append(f"| {int(n)} | {METHOD_LABELS[method]} | — | — | — | — | — | — | — |")
 
     lines.extend([
         "",
-        "### 3.2. Thời gian theo h",
-        "| alpha | h | Custom brute (s) | Custom KD-Tree (s) | KD-Tree + bin seeding (s) | sklearn off (s) | sklearn on (s) |",
-        "|---:|---:|---:|---:|---:|---:|---:|",
+        "### 3.2. Thời gian, bộ nhớ và số cụm theo h",
+        "| alpha | h | Phương pháp | Median thời gian (s) | IQR thời gian (s) | Bộ nhớ đỉnh (MB) | Số cụm trung vị | Số seed trung vị | Láng giềng TB/truy vấn | Vòng lặp TB |",
+        "|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|",
     ])
     for alpha in alphas:
         h = float(alpha) * h0
-        vals = []
         for method in METHODS:
             r = _summary_value(summary_rows, "h", method, n=int(h_sweep["n"]), alpha=float(alpha))
-            vals.append(f"{float(r['median_time_s']):.4g}" if r else "—")
-        lines.append(f"| {alpha:g} | {h:.5g} | " + " | ".join(vals) + " |")
+            if r:
+                lines.append(
+                    f"| {float(alpha):g} | {h:.5g} | {METHOD_LABELS[method]} | {fmt(r.get('median_time_s'))} | {fmt(r.get('iqr_time_s'))} | "
+                    f"{fmt(r.get('median_peak_memory_mb'))} | {fmt(r.get('median_n_clusters'), 3)} | "
+                    f"{fmt(r.get('median_n_seeds'), 3)} | {fmt(r.get('mean_neighbors_per_query'))} | {fmt(r.get('mean_iterations'))} |"
+                )
+            else:
+                lines.append(f"| {float(alpha):g} | {h:.5g} | {METHOD_LABELS[method]} | — | — | — | — | — | — | — |")
 
-    lines.extend(["", "## 4. Trả lời các ý của RQ3"])
-    n_rows = [r for r in summary_rows if r["experiment"] == "n" and r["status"] == "ok"]
-    first_kd_win = None
-    for n in sorted({int(float(r["n"])) for r in n_rows}):
-        brute = _summary_value(summary_rows, "n", "custom_brute", n=n)
-        kd = _summary_value(summary_rows, "n", "custom_kdtree", n=n)
-        if brute and kd and float(kd["median_time_s"]) < float(brute["median_time_s"]):
-            first_kd_win = n
-            break
-    if first_kd_win is not None:
-        lines.append(f"- **Ngưỡng quan sát KD-Tree nhanh hơn brute:** trong các n đã chạy, lần đầu ghi nhận tại n={first_kd_win}. Đây là kết quả thực nghiệm của môi trường đã ghi ở trên, không phải ngưỡng phổ quát.")
+    lines.extend(["", "## 4. Trả lời định lượng các câu hỏi RQ3"])
+
+    def numeric(row: dict[str, Any] | None, key: str) -> float | None:
+        if not row:
+            return None
+        try:
+            value = float(row.get(key, float("nan")))
+            return value if math.isfinite(value) else None
+        except (TypeError, ValueError):
+            return None
+
+    def pct_change(start_value: float | None, end_value: float | None) -> float | None:
+        if start_value is None or end_value is None or abs(start_value) < 1e-15:
+            return None
+        return (end_value - start_value) / abs(start_value) * 100.0
+
+    def pct_text(value: float | None) -> str:
+        return "không tính được" if value is None else f"{value:+.1f}%"
+
+    def direction(values: list[float]) -> str:
+        values = [v for v in values if math.isfinite(v)]
+        if len(values) < 2:
+            return "chưa đủ điểm hợp lệ để xác định xu hướng"
+        diffs = [b - a for a, b in zip(values, values[1:])]
+        eps = 1e-12 * max(1.0, max(abs(v) for v in values))
+        if all(d >= -eps for d in diffs) and any(d > eps for d in diffs):
+            return "tăng hoặc giữ nguyên qua các mức đã đo"
+        if all(d <= eps for d in diffs) and any(d < -eps for d in diffs):
+            return "giảm hoặc giữ nguyên qua các mức đã đo"
+        if all(abs(d) <= eps for d in diffs):
+            return "gần như không đổi qua các mức đã đo"
+        return "biến động không đơn điệu qua các mức đã đo"
+
+    def get_row(experiment: str, method: str, *, n: int | None = None,
+                alpha: float | None = None) -> dict[str, Any] | None:
+        return _summary_value(summary_rows, experiment, method, n=n, alpha=alpha)
+
+    # 4.1 — Compare KD-Tree and brute at every comparable n, rather than only
+    # announcing the first crossover point.
+    lines.extend([
+        "",
+        "### 4.1. KD-Tree bắt đầu nhanh hơn brute ở n nào?",
+        "Tốc độ tương đối được tính bằng `median_time(brute) / median_time(KD-Tree)`. Giá trị > 1 nghĩa là KD-Tree nhanh hơn; giá trị < 1 nghĩa là KD-Tree chậm hơn trong cấu hình và môi trường đã đo.",
+        "",
+        "| n | Brute median (s) | KD-Tree median (s) | Brute/KD-Tree (×) | Láng giềng TB/truy vấn của KD-Tree |",
+        "|---:|---:|---:|---:|---:|",
+    ])
+    comparable_n: list[tuple[int, float, float, dict[str, Any], dict[str, Any]]] = []
+    for n in sorted({int(float(v)) for v in n_values}):
+        brute = get_row("n", "custom_brute", n=n)
+        kd = get_row("n", "custom_kdtree", n=n)
+        brute_t, kd_t = numeric(brute, "median_time_s"), numeric(kd, "median_time_s")
+        if brute_t is None or kd_t is None or brute_t <= 0 or kd_t <= 0:
+            lines.append(f"| {n} | — | — | — | {fmt(numeric(kd, 'mean_neighbors_per_query'))} |")
+            continue
+        ratio = brute_t / kd_t
+        comparable_n.append((n, brute_t, kd_t, brute or {}, kd or {}))
+        lines.append(
+            f"| {n} | {brute_t:.5g} | {kd_t:.5g} | {ratio:.3f} | {fmt(numeric(kd, 'mean_neighbors_per_query'))} |"
+        )
+
+    wins = [entry for entry in comparable_n if entry[2] < entry[1]]
+    if wins:
+        first_n = wins[0][0]
+        later = [entry for entry in comparable_n if entry[0] >= first_n]
+        remains_faster = all(kd_t < brute_t for _, brute_t, kd_t, _, _ in later)
+        if remains_faster:
+            threshold_note = "và KD-Tree vẫn nhanh hơn ở tất cả mức n lớn hơn có số liệu hợp lệ"
+        else:
+            reversed_ns = [n for n, brute_t, kd_t, _, _ in later if kd_t >= brute_t]
+            threshold_note = (
+                "nhưng lợi thế không duy trì ở mọi mức n lớn hơn; KD-Tree không nhanh hơn brute tại n="
+                + ", ".join(f"{n:,}" for n in reversed_ns)
+            )
+        lines.append(
+            f"\n**Kết quả:** trong các mức n được so sánh hợp lệ, KD-Tree lần đầu nhanh hơn brute tại **n = {first_n:,}**; {threshold_note}. Đây là kết quả quan sát trên máy và bộ dữ liệu này, không phải ngưỡng phổ quát."
+        )
+    elif len(comparable_n) >= 2:
+        largest = max(comparable_n, key=lambda entry: entry[0])
+        n_max, brute_t, kd_t, _, kd_row = largest
+        kd_neighbors = numeric(kd_row, "mean_neighbors_per_query")
+        lines.append(
+            f"\n**Kết quả:** chưa ghi nhận KD-Tree nhanh hơn brute ở bất kỳ mức n nào có đủ số liệu so sánh ({len(comparable_n)} mức hợp lệ). Tại n lớn nhất có thể so sánh (n={n_max:,}), brute mất {brute_t:.5g} s, KD-Tree mất {kd_t:.5g} s; tỷ số brute/KD-Tree = {brute_t / kd_t:.3f}×."
+        )
+        possible_reasons = []
+        if kd_neighbors is not None and kd_neighbors > 0.25 * n_max:
+            possible_reasons.append(
+                f"số láng giềng trung bình của KD-Tree ({kd_neighbors:.3g}) đã chiếm hơn 25% n tại mức n này, nên việc truy vấn bán kính có thể phải xử lý nhiều điểm"
+            )
+        if kd_t >= brute_t:
+            possible_reasons.append(
+                "chi phí xây dựng/truy vấn cây có thể chưa được bù đắp bởi lượng tính toán tiết kiệm được ở bộ dữ liệu và quy mô đã thử"
+            )
+        if possible_reasons:
+            lines.append("Các cơ chế có thể giải thích kết quả, cần xem như giả thuyết chứ chưa phải quan hệ nhân quả đã được chứng minh: " + "; ".join(possible_reasons) + ".")
+        else:
+            lines.append("Không nên suy diễn một nguyên nhân duy nhất từ benchmark hiện có; cần kiểm tra thêm số láng giềng, cấu hình và các lượt đo nếu muốn giải thích nguyên nhân.")
     else:
-        lines.append("- **KD-Tree so với brute:** không ghi nhận KD-Tree nhanh hơn brute ở các kích thước n có đủ dữ liệu hợp lệ, hoặc một trong hai biến thể chưa có số liệu để kết luận.")
+        lines.append("\n**Kết quả:** chưa đủ ít nhất hai mức n có thời gian hợp lệ cho cả brute và KD-Tree để xác định điểm giao hoặc đánh giá khả năng mở rộng.")
 
+    # Empirical log-log slopes only use successful time measurements.
     slopes = []
     for method in METHODS:
-        rows = [r for r in summary_rows if r["experiment"] == "n" and r["method"] == method and r["status"] == "ok"
-                and _valid_positive(r.get("n")) and _valid_positive(r.get("median_time_s"))]
+        rows = [r for r in summary_rows if r.get("experiment") == "n" and r.get("method") == method
+                and r.get("status") == "ok" and _valid_positive(r.get("n"))
+                and _valid_positive(r.get("median_time_s"))]
         if len(rows) >= 2:
-            slope = float(np.polyfit(np.log10([float(r["n"]) for r in rows]),
-                                     np.log10([float(r["median_time_s"]) for r in rows]), 1)[0])
+            rows.sort(key=lambda row: float(row["n"]))
+            slope = float(np.polyfit(
+                np.log10([float(r["n"]) for r in rows]),
+                np.log10([float(r["median_time_s"]) for r in rows]), 1
+            )[0])
             slopes.append((method, slope, len(rows)))
+    lines.extend(["", "**Độ dốc log–log thực nghiệm** (hệ số góc của log10(thời gian median) theo log10(n), chỉ tính tại các điểm đo hợp lệ):"])
     if slopes:
-        lines.append("- **Độ dốc log–log thực nghiệm** (hệ số góc của log10(thời gian) theo log10(n); chỉ tính trên các điểm hợp lệ):")
         for method, slope, count in slopes:
-            lines.append(f"  - {METHOD_LABELS[method]}: {slope:.3f} (dựa trên {count} mức n).")
+            lines.append(f"- {METHOD_LABELS[method]}: độ dốc = **{slope:.3f}**, dựa trên {count} mức n.")
+        lines.append("Độ dốc là mô tả thực nghiệm trong khoảng n đã đo; không nên đồng nhất trực tiếp với độ phức tạp tiệm cận lý thuyết.")
     else:
-        lines.append("- **Độ dốc log–log:** chưa đủ ít nhất hai điểm dữ liệu hợp lệ cho từng biến thể để ước lượng.")
+        lines.append("Chưa đủ ít nhất hai mức n hợp lệ cho một phương pháp để ước lượng độ dốc.")
 
-    bin_speedups = []
-    for n in sorted({int(float(r["n"])) for r in n_rows}):
-        kd = _summary_value(summary_rows, "n", "custom_kdtree", n=n)
-        kdb = _summary_value(summary_rows, "n", "custom_kdtree_bin", n=n)
-        if kd and kdb and float(kdb["median_time_s"]) > 0:
-            ratio = float(kd["median_time_s"]) / float(kdb["median_time_s"])
-            bin_speedups.append((n, ratio, kd, kdb))
-    if bin_speedups:
-        best = max(bin_speedups, key=lambda x: x[1])
-        lines.append(f"- **Bin seeding:** tại n={best[0]}, KD-Tree có bin seeding đạt tốc độ khoảng {best[1]:.3g}× so với KD-Tree không bin seeding (tỷ số thời gian median trên số liệu hợp lệ). Số seed trung vị ở hai cấu hình lần lượt là {best[3]['median_n_seeds']:.0f} và {best[2]['median_n_seeds']:.0f} nếu có số liệu.")
+    # 4.2 — Describe bandwidth trends from measured neighborhood and timing values.
+    lines.extend([
+        "",
+        "### 4.2. Khi h tăng, số láng giềng và thời gian thay đổi thế nào?",
+        "Bảng sau so sánh mức alpha nhỏ nhất và lớn nhất có số liệu hợp lệ của từng phương pháp. Phần trăm thay đổi được tính từ điểm đầu đến điểm cuối; phần nhận xét về xu hướng dùng tất cả điểm alpha có dữ liệu.",
+        "",
+        "| Phương pháp | alpha đầu → cuối | Láng giềng TB/truy vấn đầu → cuối | Thay đổi láng giềng | Thời gian median đầu → cuối (s) | Thay đổi thời gian | Xu hướng thời gian qua các alpha |",
+        "|---|---:|---:|---:|---:|---:|---|",
+    ])
+    h_trend_data: dict[str, list[tuple[float, dict[str, Any]]]] = {}
+    for method in METHODS:
+        entries = []
+        for alpha in alphas:
+            row = get_row("h", method, n=int(h_sweep["n"]), alpha=float(alpha))
+            if row is not None:
+                entries.append((float(alpha), row))
+        entries.sort(key=lambda item: item[0])
+        h_trend_data[method] = entries
+        valid_time = [(a, r, numeric(r, "median_time_s")) for a, r in entries
+                      if numeric(r, "median_time_s") is not None]
+        valid_neighbors = [(a, r, numeric(r, "mean_neighbors_per_query")) for a, r in entries
+                           if numeric(r, "mean_neighbors_per_query") is not None]
+        if not valid_time:
+            lines.append(f"| {METHOD_LABELS[method]} | — | — | — | — | — | Không đủ thời gian hợp lệ |")
+            continue
+        first_a, first_r, first_t = valid_time[0]
+        last_a, last_r, last_t = valid_time[-1]
+        time_values = [float(t) for _, _, t in valid_time if t is not None]
+        time_trend = direction(time_values)
+        if valid_neighbors:
+            n_first_a, _, n_first = valid_neighbors[0]
+            n_last_a, _, n_last = valid_neighbors[-1]
+            neighbor_text = f"{fmt(n_first)} → {fmt(n_last)}"
+            neighbor_change = pct_text(pct_change(n_first, n_last))
+        else:
+            neighbor_text = "không thu được"
+            neighbor_change = "không tính được"
+        lines.append(
+            f"| {METHOD_LABELS[method]} | {first_a:g} → {last_a:g} | {neighbor_text} | {neighbor_change} | "
+            f"{first_t:.5g} → {last_t:.5g} | {pct_text(pct_change(first_t, last_t))} | {time_trend} |"
+        )
+
+    kd_entries = h_trend_data.get("custom_kdtree", [])
+    kd_neighbors = [(a, numeric(r, "mean_neighbors_per_query")) for a, r in kd_entries
+                    if numeric(r, "mean_neighbors_per_query") is not None]
+    kd_times = [(a, numeric(r, "median_time_s")) for a, r in kd_entries
+                if numeric(r, "median_time_s") is not None]
+    lines.append("")
+    if len(kd_neighbors) >= 2:
+        neighbor_values = [float(v) for _, v in kd_neighbors]
+        lines.append(
+            f"**Diễn giải KD-Tree:** số láng giềng trung bình {direction(neighbor_values)} theo các alpha đã đo; từ alpha={kd_neighbors[0][0]:g} đến alpha={kd_neighbors[-1][0]:g}, giá trị đổi từ {neighbor_values[0]:.4g} sang {neighbor_values[-1]:.4g} ({pct_text(pct_change(neighbor_values[0], neighbor_values[-1]) )})."
+        )
     else:
-        lines.append("- **Bin seeding:** chưa đủ số liệu hợp lệ để định lượng mức tăng tốc so với KD-Tree không bin seeding.")
-
-    h_rows = [r for r in summary_rows if r["experiment"] == "h" and r["status"] == "ok"]
-    if len({float(r["alpha"]) for r in h_rows}) >= 2:
-        lines.append("- **Ảnh hưởng của h:** tham chiếu bảng thời gian theo alpha ở trên và biểu đồ `e3_time_vs_h.png`. Diễn giải KD-Tree cần đối chiếu xu hướng thời gian với `mean_neighbors_per_query`; số láng giềng tăng theo h là cơ chế dự kiến trong thiết kế nghiên cứu, còn mức tăng cụ thể phụ thuộc vào dữ liệu và kết quả đo.")
+        lines.append("**Diễn giải KD-Tree:** không đủ ít nhất hai giá trị `mean_neighbors_per_query` hợp lệ để kết luận xu hướng láng giềng khi h tăng. Hãy kiểm tra `e3_runs.csv` xem lượt diagnostics có ghi được bộ đếm hay không.")
+    if len(kd_times) >= 2:
+        time_values = [float(v) for _, v in kd_times]
+        lines.append(
+            f"Thời gian median của KD-Tree {direction(time_values)} theo alpha; từ alpha={kd_times[0][0]:g} đến alpha={kd_times[-1][0]:g}, thời gian đổi từ {time_values[0]:.5g} s sang {time_values[-1]:.5g} s ({pct_text(pct_change(time_values[0], time_values[-1]))})."
+        )
     else:
-        lines.append("- **Ảnh hưởng của h:** chưa đủ ít nhất hai mức alpha có kết quả hợp lệ để kết luận xu hướng.")
+        lines.append("Chưa đủ dữ liệu thời gian của KD-Tree qua nhiều mức alpha để kết luận xu hướng.")
+    lines.append("Số láng giềng lớn hơn có thể làm giảm lợi thế của KD-Tree vì truy vấn cần trả về nhiều điểm hơn; chỉ kết luận cơ chế này phù hợp với kết quả nếu số láng giềng thực đo và thời gian cùng ủng hộ nhận xét, không suy ra quan hệ nhân quả chỉ từ lý thuyết.")
 
+    # 4.3 — Report the bin-seeding effect at every comparable n, not just the best case.
+    lines.extend([
+        "",
+        "### 4.3. Bin seeding giảm bao nhiêu seed và thời gian?",
+        "So sánh `custom_kdtree_bin` với `custom_kdtree` tại cùng n và h. Phần trăm tiết kiệm seed = (seed không bin − seed có bin) / seed không bin; phần trăm tiết kiệm thời gian được tính tương tự. Số âm nghĩa là cấu hình có bin seeding tốn nhiều tài nguyên/thời gian hơn ở phép đo đó.",
+        "",
+        "| n | Seed không bin | Seed có bin | Seed giảm | Seed giảm (%) | Số cụm không bin | Số cụm có bin | Thời gian không bin (s) | Thời gian có bin (s) | Thời gian tiết kiệm (s) | Thời gian tiết kiệm (%) | Speedup có bin (×) |",
+        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ])
+    bin_rows: list[dict[str, float]] = []
+    for n in sorted({int(float(v)) for v in n_values}):
+        kd = get_row("n", "custom_kdtree", n=n)
+        kdb = get_row("n", "custom_kdtree_bin", n=n)
+        t0, t1 = numeric(kd, "median_time_s"), numeric(kdb, "median_time_s")
+        s0, s1 = numeric(kd, "median_n_seeds"), numeric(kdb, "median_n_seeds")
+        if t0 is None or t1 is None or t0 <= 0 or t1 <= 0:
+            c0, c1 = numeric(kd, "median_n_clusters"), numeric(kdb, "median_n_clusters")
+            lines.append(f"| {n} | {fmt(s0, 3)} | {fmt(s1, 3)} | — | — | {fmt(c0, 3)} | {fmt(c1, 3)} | {fmt(t0)} | {fmt(t1)} | — | — | — |")
+            continue
+        seed_saved = (s0 - s1) if s0 is not None and s1 is not None else None
+        seed_pct = pct_change(s0, s1) if s0 is not None and s0 > 0 and s1 is not None else None
+        # pct_change returns new-old; invert to express savings as positive values.
+        seed_pct_saved = -seed_pct if seed_pct is not None else None
+        seconds_saved = t0 - t1
+        time_pct_saved = (seconds_saved / t0 * 100.0) if t0 > 0 else None
+        speedup = t0 / t1
+        c0, c1 = numeric(kd, "median_n_clusters"), numeric(kdb, "median_n_clusters")
+        lines.append(
+            f"| {n} | {fmt(s0, 3)} | {fmt(s1, 3)} | {fmt(seed_saved, 4)} | {pct_text(seed_pct_saved)} | "
+            f"{fmt(c0, 3)} | {fmt(c1, 3)} | {t0:.5g} | {t1:.5g} | {seconds_saved:+.5g} | {pct_text(time_pct_saved)} | {speedup:.3f} |"
+        )
+        bin_rows.append({
+            "n": float(n), "time_without": t0, "time_with": t1, "seconds_saved": seconds_saved,
+            "time_pct_saved": time_pct_saved if time_pct_saved is not None else float("nan"),
+            "seed_without": s0 if s0 is not None else float("nan"),
+            "seed_with": s1 if s1 is not None else float("nan"),
+            "seed_saved": seed_saved if seed_saved is not None else float("nan"),
+            "seed_pct_saved": seed_pct_saved if seed_pct_saved is not None else float("nan"),
+            "speedup": speedup,
+        })
+
+    if bin_rows:
+        seed_rows = [r for r in bin_rows if math.isfinite(r["seed_pct_saved"])]
+        time_rows = [r for r in bin_rows if math.isfinite(r["time_pct_saved"])]
+        if seed_rows:
+            best_seed = max(seed_rows, key=lambda r: r["seed_pct_saved"])
+            if best_seed["seed_pct_saved"] >= 0:
+                seed_sentence = "Mức giảm seed lớn nhất theo tỷ lệ"
+            else:
+                seed_sentence = "Không ghi nhận giảm seed ở các mức n có thể so sánh; mức thay đổi ít bất lợi nhất theo tỷ lệ"
+            lines.append(
+                f"\n{seed_sentence} là {best_seed['seed_pct_saved']:+.1f}% tại n={int(best_seed['n']):,} "
+                f"(từ {best_seed['seed_without']:.0f} xuống {best_seed['seed_with']:.0f} seed)."
+            )
+        if time_rows:
+            best_time = max(time_rows, key=lambda r: r["time_pct_saved"])
+            if best_time["time_pct_saved"] >= 0:
+                time_sentence = "Mức tiết kiệm thời gian lớn nhất theo tỷ lệ"
+            else:
+                time_sentence = "Bin seeding không tiết kiệm thời gian ở các mức n so sánh được; trường hợp ít chậm hơn theo tỷ lệ"
+            lines.append(
+                f"{time_sentence} là {best_time['time_pct_saved']:+.1f}% tại n={int(best_time['n']):,} "
+                f"({best_time['seconds_saved']:+.5g} s; speedup={best_time['speedup']:.3f}×). Số âm nghĩa là bin seeding chậm hơn KD-Tree không bin ở cấu hình đó."
+            )
+        lines.append("Cần đọc đồng thời cột số cụm: giảm seed/tăng tốc không tự động có nghĩa là kết quả phân cụm giữ nguyên. Bảng E3 ghi số cụm để đối chiếu; đánh giá sai khác chất lượng phân cụm chi tiết thuộc các thực nghiệm phù hợp như E1/E6.")
+    else:
+        lines.append("Chưa đủ các cặp thời gian hợp lệ của KD-Tree có/không bin seeding để định lượng mức giảm. Xem trạng thái timeout/error trong `e3_runs.csv`.")
     lines.extend([
         "",
         "## 5. Biểu đồ",
@@ -944,19 +1334,20 @@ def write_report(report_path: Path, cfg: dict[str, Any], h0: float, env: dict[st
         "- `../results/e3/e3_time_vs_h.png` — thời gian theo h.",
         "",
         "## 6. Giới hạn và lưu ý diễn giải",
-        "- `tracemalloc` ghi nhận bộ nhớ do allocator Python theo dõi; có thể không bao quát đầy đủ bộ nhớ native do NumPy, SciPy, KD-Tree hoặc thư viện sklearn cấp phát. Không diễn giải số đo này như RSS tổng của tiến trình.",
-        "- Thời gian là thời gian `fit(X)` trong môi trường đã ghi. So sánh không tự động chứng minh một thuật toán luôn nhanh hơn trên mọi máy hoặc mọi dữ liệu.",
+        "- `tracemalloc` ghi nhận bộ nhớ Python-traced; có thể không bao quát đầy đủ bộ nhớ native do NumPy, SciPy, KD-Tree hoặc sklearn cấp phát. Không diễn giải số đo này như RSS tổng của tiến trình.",
+        "- Thời gian báo cáo chỉ lấy từ các lượt fit không bật tracemalloc và không gắn wrapper. Lượt đo bộ nhớ và lượt chẩn đoán là các lần fit riêng; thời gian của chúng không tham gia tính median thời gian.",
+        "- Bộ nhớ được đo một lần riêng cho mỗi cấu hình. Do chỉ có một quan sát, median được báo cáo nhưng Q1/Q3/IQR bộ nhớ để trống.",
         "- Các lượt timeout/skip được ghi trong CSV; chúng không được dùng để tính median thời gian thành công.",
-        "- Số láng giềng trung bình và số vòng lặp được ghi khi implementation/API cho phép instrument. Nếu giá trị trống, cần kiểm tra tương thích API hoặc báo cáo là không khả dụng, không tự suy ra giá trị.",
+        "- Số láng giềng và vòng lặp lấy từ lượt chẩn đoán. Nếu API thư viện thay đổi khiến không thu được số liệu, để trống/NA thay vì tự suy ra.",
+        "- Số cụm được lấy từ `len(cluster_centers_)` sau mỗi lượt fit; cần đọc cột này cùng bandwidth h để xác định liệu các cụm có bị gộp quá mức hay không.",
         "",
         "## 7. File đầu ra",
-        "- `../results/e3/e3_runs.csv` — dữ liệu từng lượt chạy.",
-        "- `../results/e3/e3_summary.csv` — median, Q1, Q3, IQR và hệ số tăng tốc so với custom brute.",
+        "- `../results/e3/e3_runs.csv` — dữ liệu từng phép đo, có cột `measurement` (`time`, `memory`, `diagnostics`).",
+        "- `../results/e3/e3_summary.csv` — median/Q1/Q3/IQR cho thời gian, peak memory khi có đủ quan sát, speedup so với custom brute và số cụm trung vị.",
         "- `../results/e3/env.txt` và `../results/e3/e3_metadata.json` — môi trường và cấu hình chạy.",
         "",
     ])
     report_path.write_text("\n".join(lines), encoding="utf-8")
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="E3 Mean-Shift runtime/memory benchmark")
@@ -1012,7 +1403,7 @@ def main() -> int:
     )
     h0 = float(estimate_bandwidth(
         X_ref,
-        quantile=float(ds.get("bandwidth_quantile", 0.3)),
+        quantile=float(ds.get("bandwidth_quantile", 0.1)),
         n_samples=ds.get("bandwidth_n_samples", None),
         random_state=int(ds.get("random_state", 0)),
     ))
@@ -1051,23 +1442,41 @@ def main() -> int:
         "environment": env,
         "raw_csv": str(raw_path.relative_to(ROOT)) if raw_path.is_relative_to(ROOT) else str(raw_path),
         "summary_csv": str((out_dir / "e3_summary.csv").relative_to(ROOT)) if out_dir.is_relative_to(ROOT) else str(out_dir / "e3_summary.csv"),
-        "note": "tracemalloc peak is Python-traced memory, not complete process RSS.",
+        "measurement_protocol": {
+            "time": "repeated fit runs with perf_counter; tracemalloc off; no instrumentation wrappers",
+            "memory": "one separate fit run with tracemalloc; no instrumentation wrappers",
+            "diagnostics": "one separate fit run with wrappers for neighbor and iteration statistics; its elapsed time is not used",
+        },
+        "note": "tracemalloc peak is Python-traced memory, not complete process RSS. Bandwidth quantile defaults to 0.1; inspect median_n_clusters in the report.",
     }
     (out_dir / "e3_metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
     write_report(report_path, cfg, h0, env, summary_rows, repeats, timeout)
 
-    successes = sum(1 for r in all_rows if r.get("status") == "ok")
+    successful_time_runs = sum(
+        1 for r in all_rows
+        if r.get("measurement") == "time" and r.get("status") == "ok"
+    )
+    successful_memory_runs = sum(
+        1 for r in all_rows
+        if r.get("measurement") == "memory" and r.get("status") == "ok"
+    )
+    successful_diagnostic_runs = sum(
+        1 for r in all_rows
+        if r.get("measurement") == "diagnostics" and r.get("status") == "ok"
+    )
     timeouts = sum(1 for r in all_rows if r.get("status") == "timeout")
     errors = sum(1 for r in all_rows if r.get("status") == "error")
     print("\nE3 hoàn tất.")
-    print(f"- Lượt chạy thành công: {successes}")
+    print(f"- Lượt đo thời gian thành công: {successful_time_runs}")
+    print(f"- Lượt đo bộ nhớ thành công: {successful_memory_runs}")
+    print(f"- Lượt chẩn đoán thành công: {successful_diagnostic_runs}")
     print(f"- Timeout: {timeouts}; lỗi: {errors}")
     print(f"- Raw: {raw_path}")
     print(f"- Summary: {out_dir / 'e3_summary.csv'}")
     print(f"- Hình: {out_dir / 'e3_time_vs_n.png'}, {out_dir / 'e3_memory_vs_n.png'}, {out_dir / 'e3_time_vs_h.png'}")
     print(f"- Environment: {out_dir / 'env.txt'}")
     print(f"- Report: {report_path}")
-    return 0 if successes > 0 else 1
+    return 0 if successful_time_runs > 0 else 1
 
 
 if __name__ == "__main__":

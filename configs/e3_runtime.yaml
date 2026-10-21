@@ -1,4 +1,4 @@
-# E3 — cấu hình theo E3.
+# E3 — cấu hình theo phần phân công riêng cho C.
 # File này dùng n=5.000 và alpha={0.25, 0.5, 1, 2}, theo mục "C – E3".
 dataset:
   centers: 5
@@ -6,7 +6,7 @@ dataset:
   dimensions: 2
   random_state: 0
   reference_n: 2000
-  bandwidth_quantile: 0.3
+  bandwidth_quantile: 0.1
   bandwidth_n_samples: null
 
 n_sweep:

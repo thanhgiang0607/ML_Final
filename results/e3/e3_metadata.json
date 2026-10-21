@@ -7,7 +7,7 @@
       "dimensions": 2,
       "random_state": 0,
       "reference_n": 2000,
-      "bandwidth_quantile": 0.3,
+      "bandwidth_quantile": 0.1,
       "bandwidth_n_samples": null
     },
     "n_sweep": {
@@ -42,7 +42,7 @@
     }
   },
   "config_file": "configs\\e3_runtime.yaml",
-  "h0": 4.2374814514058015,
+  "h0": 1.5541824262843624,
   "repeats": 3,
   "timeout_seconds": 600.0,
   "quick_mode": false,
@@ -70,9 +70,15 @@
     "scipy": "1.18.1",
     "scikit_learn": "1.9.1",
     "script": "experiments/e3_runtime.py",
-    "memory_measurement": "tracemalloc peak Python-traced memory during estimator.fit(X); not total native/process RSS"
+    "measurement_protocol": "runtime: perf_counter around fit with no tracemalloc/wrappers; memory: separate tracemalloc fit with no wrappers; diagnostics: separate fit with neighbor/iteration wrappers",
+    "memory_measurement": "tracemalloc peak Python-traced memory; not total native/process RSS"
   },
   "raw_csv": "results\\e3\\e3_runs.csv",
   "summary_csv": "results\\e3\\e3_summary.csv",
-  "note": "tracemalloc peak is Python-traced memory, not complete process RSS."
+  "measurement_protocol": {
+    "time": "repeated fit runs with perf_counter; tracemalloc off; no instrumentation wrappers",
+    "memory": "one separate fit run with tracemalloc; no instrumentation wrappers",
+    "diagnostics": "one separate fit run with wrappers for neighbor and iteration statistics; its elapsed time is not used"
+  },
+  "note": "tracemalloc peak is Python-traced memory, not complete process RSS. Bandwidth quantile defaults to 0.1; inspect median_n_clusters in the report."
 }
