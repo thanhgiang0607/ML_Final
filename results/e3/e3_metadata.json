@@ -41,7 +41,7 @@
       "report": "report/THUC_NGHIEM_E3.md"
     }
   },
-  "config_file": "configs\\e3_runtime.yaml",
+  "config_file": "configs/e3_runtime.yaml",
   "h0": 1.5541824262843624,
   "repeats": 3,
   "timeout_seconds": 600.0,
@@ -73,8 +73,8 @@
     "measurement_protocol": "runtime: perf_counter around fit with no tracemalloc/wrappers; memory: separate tracemalloc fit with no wrappers; diagnostics: separate fit with neighbor/iteration wrappers",
     "memory_measurement": "tracemalloc peak Python-traced memory; not total native/process RSS"
   },
-  "raw_csv": "results\\e3\\e3_runs.csv",
-  "summary_csv": "results\\e3\\e3_summary.csv",
+  "raw_csv": "results/e3/e3_runs.csv",
+  "summary_csv": "results/e3/e3_summary.csv",
   "measurement_protocol": {
     "time": "repeated fit runs with perf_counter; tracemalloc off; no instrumentation wrappers",
     "memory": "one separate fit run with tracemalloc; no instrumentation wrappers",

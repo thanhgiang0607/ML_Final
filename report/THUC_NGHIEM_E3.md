@@ -23,65 +23,65 @@ Bảng có cột **Số cụm trung vị** để kiểm tra bandwidth có đang 
 
 | n | Phương pháp | Median thời gian (s) | IQR thời gian (s) | Bộ nhớ đỉnh (MB) | Số cụm trung vị | Số seed trung vị | Láng giềng TB/truy vấn | Vòng lặp TB |
 |---:|---|---:|---:|---:|---:|---:|---:|---:|
-| 500 | Custom brute | 0.2018 | 0.8461 | 4.547 | 6 | 500 | 70.57 | 7.794 |
-| 500 | Custom KD-Tree | 0.2072 | 0.01274 | 2.203 | 6 | 500 | 70.57 | 7.794 |
-| 500 | Custom KD-Tree + bin seeding | 0.01241 | 0.003355 | 0.2264 | 5 | 48 | 65.33 | 8.771 |
-| 500 | sklearn (bin seeding off) | 1.138 | 0.1493 | 0.8895 | 6 | 500 | 70.49 | 22 |
-| 500 | sklearn (bin seeding on) | 0.1638 | 0.05159 | 0.7485 | 5 | 48 | 64.67 | 18 |
-| 1000 | Custom brute | 0.5732 | 0.03641 | 15.21 | 5 | 1e+03 | 152 | 9.584 |
-| 1000 | Custom KD-Tree | 0.6361 | 0.02916 | 9.587 | 5 | 1e+03 | 152 | 9.584 |
-| 1000 | Custom KD-Tree + bin seeding | 0.02924 | 0.01289 | 0.5393 | 4 | 56 | 133.2 | 9.75 |
-| 1000 | sklearn (bin seeding off) | 3.583 | 0.1637 | 1.031 | 5 | 1e+03 | 151.9 | 36 |
-| 1000 | sklearn (bin seeding on) | 0.2583 | 0.0204 | 0.7671 | 4 | 56 | 132.4 | 18 |
-| 2000 | Custom brute | 2.058 | 0.121 | 38.99 | 6 | 2e+03 | 293.8 | 10.85 |
-| 2000 | Custom KD-Tree | 2.222 | 0.02929 | 39.83 | 6 | 2e+03 | 293.8 | 10.85 |
-| 2000 | Custom KD-Tree + bin seeding | 0.03636 | 0.007926 | 1.186 | 6 | 60 | 265.9 | 11.92 |
-| 2000 | sklearn (bin seeding off) | 7.947 | 0.672 | 1.381 | 6 | 2e+03 | 293.7 | 38 |
-| 2000 | sklearn (bin seeding on) | 0.5018 | 0.1656 | 0.8115 | 6 | 60 | 263.9 | 19 |
-| 5000 | Custom brute | 14.51 | 0.9822 | 165.4 | 6 | 5e+03 | 756.1 | 16.64 |
-| 5000 | Custom KD-Tree | 17.95 | 5.693 | 253.1 | 6 | 5e+03 | 756.1 | 16.64 |
-| 5000 | Custom KD-Tree + bin seeding | 0.1115 | 0.006944 | 3.495 | 5 | 68 | 690.7 | 16.24 |
-| 5000 | sklearn (bin seeding off) | 28.07 | 0.7794 | 2.502 | 6 | 5e+03 | 756 | 84 |
-| 5000 | sklearn (bin seeding on) | 0.561 | 0.1455 | 0.9095 | 5 | 68 | 687.8 | 41 |
-| 10000 | Custom brute | 92.15 | 13.49 | 562.3 | 4 | 1e+04 | 1484 | 14.92 |
-| 10000 | Custom KD-Tree | 40.42 | 0.2291 | 1019 | 4 | 1e+04 | 1484 | 14.92 |
-| 10000 | Custom KD-Tree + bin seeding | 0.3125 | 0.06557 | 7.497 | 5 | 73 | 1360 | 16.05 |
-| 10000 | sklearn (bin seeding off) | 131.6 | 39.74 | 4.131 | 4 | 1e+04 | 1484 | 59 |
-| 10000 | sklearn (bin seeding on) | 0.9963 | 0.1935 | 1.039 | 5 | 73 | 1354 | 37 |
-| 20000 | Custom brute | — | — | — | — | — | — | — |
-| 20000 | Custom KD-Tree | 445.3 | 41.91 | — | 4 | 2e+04 | — | — |
-| 20000 | Custom KD-Tree + bin seeding | 0.4974 | 0.06118 | 16.64 | 5 | 81 | 2654 | 14.51 |
-| 20000 | sklearn (bin seeding off) | 255.9 | 17.01 | 7.321 | 4 | 2e+04 | 2969 | 66 |
-| 20000 | sklearn (bin seeding on) | 0.7431 | 0.3988 | 1.331 | 5 | 81 | 2644 | 45 |
+| 500 | Custom brute | 0.1077 | 0.04136 | 4.547 | 6 | 500 | 70.57 | 7.794 |
+| 500 | Custom KD-Tree | 0.1394 | 0.05008 | 2.203 | 6 | 500 | 70.57 | 7.794 |
+| 500 | Custom KD-Tree + bin seeding | 0.0914 | 0.007053 | 0.2264 | 5 | 48 | 65.33 | 8.771 |
+| 500 | sklearn (bin seeding off) | 6.512 | 0.2692 | 0.8895 | 6 | 500 | 70.49 | 7.794 |
+| 500 | sklearn (bin seeding on) | 0.6823 | 0.04841 | 0.7431 | 5 | 48 | 64.67 | 8.771 |
+| 1000 | Custom brute | 0.6149 | 0.151 | 15.21 | 5 | 1000 | 152 | 9.584 |
+| 1000 | Custom KD-Tree | 0.4546 | 0.003305 | 9.587 | 5 | 1000 | 152 | 9.584 |
+| 1000 | Custom KD-Tree + bin seeding | 0.1451 | 0.0009871 | 0.5393 | 4 | 56 | 133.2 | 9.75 |
+| 1000 | sklearn (bin seeding off) | 15.72 | 0.1178 | 1.03 | 5 | 1000 | 151.9 | 9.584 |
+| 1000 | sklearn (bin seeding on) | 0.8725 | 0.007826 | 0.7664 | 4 | 56 | 132.4 | 9.75 |
+| 2000 | Custom brute | 1.945 | 0.5414 | 38.99 | 6 | 2000 | 293.8 | 10.85 |
+| 2000 | Custom KD-Tree | 1.667 | 0.202 | 39.83 | 6 | 2000 | 293.8 | 10.85 |
+| 2000 | Custom KD-Tree + bin seeding | 0.2429 | 0.00657 | 1.186 | 6 | 60 | 265.9 | 11.92 |
+| 2000 | sklearn (bin seeding off) | 35.71 | 0.1644 | 1.379 | 6 | 2000 | 293.7 | 10.85 |
+| 2000 | sklearn (bin seeding on) | 1.134 | 0.01799 | 0.8176 | 6 | 60 | 263.9 | 11.92 |
+| 5000 | Custom brute | 32.25 | 13.93 | 165.4 | 6 | 5000 | 756.1 | 16.64 |
+| 5000 | Custom KD-Tree | 25.85 | 1.044 | 253.1 | 6 | 5000 | 756.1 | 16.64 |
+| 5000 | Custom KD-Tree + bin seeding | 0.6322 | 0.007185 | 3.495 | 5 | 68 | 690.7 | 16.24 |
+| 5000 | sklearn (bin seeding off) | 138.3 | 0.5371 | 2.505 | 6 | 5000 | 756 | 16.64 |
+| 5000 | sklearn (bin seeding on) | 1.891 | 0.01222 | 0.9101 | 5 | 68 | 687.8 | 16.24 |
+| 10000 | Custom brute | 62.14 | 0.7651 | 562.3 | 4 | 10000 | 1484 | 14.92 |
+| 10000 | Custom KD-Tree | 86.88 | 0.4595 | — | 4 | 10000 | — | — |
+| 10000 | Custom KD-Tree + bin seeding | 1.187 | 0.04865 | 7.497 | 5 | 73 | 1360 | 16.05 |
+| 10000 | sklearn (bin seeding off) | 267.7 | 6.009 | — | 4 | 10000 | — | — |
+| 10000 | sklearn (bin seeding on) | 2.252 | 0.06055 | 1.053 | 5 | 73 | 1354 | 16.05 |
+| 20000 | Custom brute | 492.2 | 22.11 | — | 4 | 20000 | — | — |
+| 20000 | Custom KD-Tree | — | — | — | — | — | — | — |
+| 20000 | Custom KD-Tree + bin seeding | 2.183 | 0.03152 | 16.64 | 5 | 81 | 2654 | 14.51 |
+| 20000 | sklearn (bin seeding off) | 524.3 | 1.883 | — | 4 | 20000 | — | — |
+| 20000 | sklearn (bin seeding on) | 2.696 | 0.02596 | 1.338 | 5 | 81 | 2644 | 14.51 |
 | 50000 | Custom brute | — | — | — | — | — | — | — |
 | 50000 | Custom KD-Tree | — | — | — | — | — | — | — |
-| 50000 | Custom KD-Tree + bin seeding | 1.226 | 0.264 | 43.79 | 6 | 87 | 6496 | 13.89 |
-| 50000 | sklearn (bin seeding off) | 446.8 | 6.292 | — | 5 | 5e+04 | — | — |
-| 50000 | sklearn (bin seeding on) | 2.196 | 0.7871 | 2.157 | 6 | 87 | 6466 | 37 |
+| 50000 | Custom KD-Tree + bin seeding | 5.462 | 0.003638 | 43.79 | 6 | 87 | 6496 | 13.89 |
+| 50000 | sklearn (bin seeding off) | — | — | — | — | — | — | — |
+| 50000 | sklearn (bin seeding on) | 4.062 | 0.0248 | 2.151 | 6 | 87 | 6466 | 13.89 |
 
 ### 3.2. Thời gian, bộ nhớ và số cụm theo h
 | alpha | h | Phương pháp | Median thời gian (s) | IQR thời gian (s) | Bộ nhớ đỉnh (MB) | Số cụm trung vị | Số seed trung vị | Láng giềng TB/truy vấn | Vòng lặp TB |
 |---:|---:|---|---:|---:|---:|---:|---:|---:|---:|
-| 0.25 | 0.38855 | Custom brute | 11.51 | 1.01 | 67.79 | 210 | 5e+03 | 55.14 | 10.75 |
-| 0.25 | 0.38855 | Custom KD-Tree | 1.471 | 1.766 | 18.11 | 210 | 5e+03 | 55.14 | 10.75 |
-| 0.25 | 0.38855 | Custom KD-Tree + bin seeding | 0.6533 | 0.2999 | 1.61 | 188 | 651 | 41.73 | 8.972 |
-| 0.25 | 0.38855 | sklearn (bin seeding off) | 60.14 | 2.085 | 2.228 | 210 | 5e+03 | 54.97 | 59 |
-| 0.25 | 0.38855 | sklearn (bin seeding on) | 5.022 | 0.935 | 1.035 | 188 | 651 | 40.63 | 46 |
-| 0.5 | 0.77709 | Custom brute | 26.48 | 1.707 | 95.1 | 12 | 5e+03 | 236.1 | 21.57 |
-| 0.5 | 0.77709 | Custom KD-Tree | 15.55 | 4.076 | — | 12 | 5e+03 | — | — |
-| 0.5 | 0.77709 | Custom KD-Tree + bin seeding | 0.707 | 0.194 | 3.358 | 11 | 204 | 215.3 | 24.8 |
-| 0.5 | 0.77709 | sklearn (bin seeding off) | 124.8 | 10.8 | 2.635 | 12 | 5e+03 | 236.1 | 67 |
-| 0.5 | 0.77709 | sklearn (bin seeding on) | 2.921 | 1.515 | 0.9746 | 11 | 204 | 214.9 | 63 |
-| 1 | 1.5542 | Custom brute | 23.67 | 2.783 | 165.4 | 6 | 5e+03 | 756.1 | 16.64 |
-| 1 | 1.5542 | Custom KD-Tree | — | — | — | — | — | — | — |
-| 1 | 1.5542 | Custom KD-Tree + bin seeding | 0.596 | 0.1914 | 3.495 | 5 | 68 | 690.7 | 16.24 |
-| 1 | 1.5542 | sklearn (bin seeding off) | 49 | 25.72 | 2.502 | 6 | 5e+03 | 756 | 84 |
-| 1 | 1.5542 | sklearn (bin seeding on) | 0.3727 | 0.1096 | 0.9092 | 5 | 68 | 687.8 | 41 |
-| 2 | 3.1084 | Custom brute | 31.8 | 0.8988 | 319.6 | 2 | 5e+03 | 2132 | 14.85 |
-| 2 | 3.1084 | Custom KD-Tree | — | — | — | — | — | — | — |
-| 2 | 3.1084 | Custom KD-Tree + bin seeding | 0.1526 | 0.03676 | 2.555 | 2 | 23 | 1989 | 14.3 |
-| 2 | 3.1084 | sklearn (bin seeding off) | 68.49 | 7.41 | 2.456 | 2 | 5e+03 | 2132 | 29 |
-| 2 | 3.1084 | sklearn (bin seeding on) | 0.2258 | 0.08189 | 0.9085 | 2 | 23 | 1978 | 28 |
+| 0.25 | 0.38855 | Custom brute | 16.37 | 0.02492 | — | 210 | 5000 | — | — |
+| 0.25 | 0.38855 | Custom KD-Tree | 11.1 | 4.932 | 18.11 | 210 | 5000 | 55.14 | 10.75 |
+| 0.25 | 0.38855 | Custom KD-Tree + bin seeding | 0.3582 | 0.1878 | 1.61 | 188 | 651 | 41.73 | 8.972 |
+| 0.25 | 0.38855 | sklearn (bin seeding off) | 50.29 | 11.78 | 2.231 | 210 | 5000 | 54.97 | 10.75 |
+| 0.25 | 0.38855 | sklearn (bin seeding on) | 2.432 | 1.049 | 1.034 | 188 | 651 | 40.63 | 8.972 |
+| 0.5 | 0.77709 | Custom brute | — | — | — | — | — | — | — |
+| 0.5 | 0.77709 | Custom KD-Tree | 6.846 | 11.72 | 82.49 | 12 | 5000 | 236.1 | 21.57 |
+| 0.5 | 0.77709 | Custom KD-Tree + bin seeding | 0.3187 | 0.1215 | 3.358 | 11 | 204 | 215.3 | 24.8 |
+| 0.5 | 0.77709 | sklearn (bin seeding off) | 102.4 | 7.496 | 2.635 | 12 | 5000 | 236.1 | 21.57 |
+| 0.5 | 0.77709 | sklearn (bin seeding on) | 3.962 | 1.29 | 0.9708 | 11 | 204 | 214.9 | 24.8 |
+| 1 | 1.5542 | Custom brute | — | — | — | — | — | — | — |
+| 1 | 1.5542 | Custom KD-Tree | 14.93 | 2.485 | 253.1 | 6 | 5000 | 756.1 | 16.64 |
+| 1 | 1.5542 | Custom KD-Tree + bin seeding | 0.1412 | 0.01979 | 3.495 | 5 | 68 | 690.7 | 16.24 |
+| 1 | 1.5542 | sklearn (bin seeding off) | 85.43 | 1.387 | 2.503 | 6 | 5000 | 756 | 16.64 |
+| 1 | 1.5542 | sklearn (bin seeding on) | 0.3843 | 0.09142 | 0.9094 | 5 | 68 | 687.8 | 16.24 |
+| 2 | 3.1084 | Custom brute | — | — | — | — | — | — | — |
+| 2 | 3.1084 | Custom KD-Tree | 39.35 | 7.413 | 605.4 | 2 | 5000 | 2132 | 14.85 |
+| 2 | 3.1084 | Custom KD-Tree + bin seeding | 0.1084 | 0.06567 | 2.555 | 2 | 23 | 1989 | 14.3 |
+| 2 | 3.1084 | sklearn (bin seeding off) | 80.67 | 0.8974 | 2.458 | 2 | 5000 | 2132 | 14.85 |
+| 2 | 3.1084 | sklearn (bin seeding on) | 0.2059 | 0.03734 | 0.9072 | 2 | 23 | 1978 | 14.3 |
 
 ## 4. Trả lời định lượng các câu hỏi RQ3
 
@@ -90,22 +90,22 @@ Tốc độ tương đối được tính bằng `median_time(brute) / median_ti
 
 | n | Brute median (s) | KD-Tree median (s) | Brute/KD-Tree (×) | Láng giềng TB/truy vấn của KD-Tree |
 |---:|---:|---:|---:|---:|
-| 500 | 0.20181 | 0.20716 | 0.974 | 70.57 |
-| 1000 | 0.57317 | 0.63612 | 0.901 | 152 |
-| 2000 | 2.0581 | 2.2217 | 0.926 | 293.8 |
-| 5000 | 14.506 | 17.947 | 0.808 | 756.1 |
-| 10000 | 92.149 | 40.419 | 2.280 | 1484 |
+| 500 | 0.10772 | 0.13937 | 0.773 | 70.57 |
+| 1000 | 0.61487 | 0.45459 | 1.353 | 152 |
+| 2000 | 1.9449 | 1.6671 | 1.167 | 293.8 |
+| 5000 | 32.249 | 25.852 | 1.247 | 756.1 |
+| 10000 | 62.137 | 86.883 | 0.715 | — |
 | 20000 | — | — | — | — |
 | 50000 | — | — | — | — |
 
-**Kết quả:** trong các mức n được so sánh hợp lệ, KD-Tree lần đầu nhanh hơn brute tại **n = 10,000**; và KD-Tree vẫn nhanh hơn ở tất cả mức n lớn hơn có số liệu hợp lệ. Đây là kết quả quan sát trên máy và bộ dữ liệu này, không phải ngưỡng phổ quát.
+**Kết quả:** trong các mức n được so sánh hợp lệ, KD-Tree lần đầu nhanh hơn brute tại **n = 1,000**; nhưng lợi thế không duy trì ở mọi mức n lớn hơn; KD-Tree không nhanh hơn brute tại n=10,000. Đây là kết quả quan sát trên máy và bộ dữ liệu này, không phải ngưỡng phổ quát.
 
 **Độ dốc log–log thực nghiệm** (hệ số góc của log10(thời gian median) theo log10(n), chỉ tính tại các điểm đo hợp lệ):
-- Custom brute: độ dốc = **2.041**, dựa trên 5 mức n.
-- Custom KD-Tree: độ dốc = **2.014**, dựa trên 6 mức n.
-- Custom KD-Tree + bin seeding: độ dốc = **1.009**, dựa trên 7 mức n.
-- sklearn (bin seeding off): độ dốc = **1.363**, dựa trên 7 mức n.
-- sklearn (bin seeding on): độ dốc = **0.495**, dựa trên 7 mức n.
+- Custom brute: độ dốc = **2.243**, dựa trên 6 mức n.
+- Custom KD-Tree: độ dốc = **2.237**, dựa trên 5 mức n.
+- Custom KD-Tree + bin seeding: độ dốc = **0.902**, dựa trên 7 mức n.
+- sklearn (bin seeding off): độ dốc = **1.213**, dựa trên 6 mức n.
+- sklearn (bin seeding on): độ dốc = **0.388**, dựa trên 7 mức n.
 Độ dốc là mô tả thực nghiệm trong khoảng n đã đo; không nên đồng nhất trực tiếp với độ phức tạp tiệm cận lý thuyết.
 
 ### 4.2. Khi h tăng, số láng giềng và thời gian thay đổi thế nào?
@@ -113,14 +113,14 @@ Bảng sau so sánh mức alpha nhỏ nhất và lớn nhất có số liệu h�
 
 | Phương pháp | alpha đầu → cuối | Láng giềng TB/truy vấn đầu → cuối | Thay đổi láng giềng | Thời gian median đầu → cuối (s) | Thay đổi thời gian | Xu hướng thời gian qua các alpha |
 |---|---:|---:|---:|---:|---:|---|
-| Custom brute | 0.25 → 2 | 55.14 → 2132 | +3766.4% | 11.508 → 31.802 | +176.3% | biến động không đơn điệu qua các mức đã đo |
-| Custom KD-Tree | 0.25 → 0.5 | 55.14 → 55.14 | +0.0% | 1.4713 → 15.554 | +957.1% | tăng hoặc giữ nguyên qua các mức đã đo |
-| Custom KD-Tree + bin seeding | 0.25 → 2 | 41.73 → 1989 | +4667.1% | 0.6533 → 0.15263 | -76.6% | biến động không đơn điệu qua các mức đã đo |
-| sklearn (bin seeding off) | 0.25 → 2 | 54.97 → 2132 | +3778.3% | 60.135 → 68.487 | +13.9% | biến động không đơn điệu qua các mức đã đo |
-| sklearn (bin seeding on) | 0.25 → 2 | 40.63 → 1978 | +4768.8% | 5.0218 → 0.22583 | -95.5% | giảm hoặc giữ nguyên qua các mức đã đo |
+| Custom brute | 0.25 → 0.25 | không thu được | không tính được | 16.374 → 16.374 | +0.0% | chưa đủ điểm hợp lệ để xác định xu hướng |
+| Custom KD-Tree | 0.25 → 2 | 55.14 → 2132 | +3766.4% | 11.104 → 39.347 | +254.3% | biến động không đơn điệu qua các mức đã đo |
+| Custom KD-Tree + bin seeding | 0.25 → 2 | 41.73 → 1989 | +4667.1% | 0.35816 → 0.10841 | -69.7% | giảm hoặc giữ nguyên qua các mức đã đo |
+| sklearn (bin seeding off) | 0.25 → 2 | 54.97 → 2132 | +3778.3% | 50.294 → 80.666 | +60.4% | biến động không đơn điệu qua các mức đã đo |
+| sklearn (bin seeding on) | 0.25 → 2 | 40.63 → 1978 | +4768.8% | 2.4316 → 0.2059 | -91.5% | biến động không đơn điệu qua các mức đã đo |
 
-**Diễn giải KD-Tree:** không đủ ít nhất hai giá trị `mean_neighbors_per_query` hợp lệ để kết luận xu hướng láng giềng khi h tăng. Hãy kiểm tra `e3_runs.csv` xem lượt diagnostics có ghi được bộ đếm hay không.
-Thời gian median của KD-Tree tăng hoặc giữ nguyên qua các mức đã đo theo alpha; từ alpha=0.25 đến alpha=0.5, thời gian đổi từ 1.4713 s sang 15.554 s (+957.1%).
+**Diễn giải KD-Tree:** số láng giềng trung bình tăng hoặc giữ nguyên qua các mức đã đo theo các alpha đã đo; từ alpha=0.25 đến alpha=2, giá trị đổi từ 55.14 sang 2132 (+3766.4%).
+Thời gian median của KD-Tree biến động không đơn điệu qua các mức đã đo theo alpha; từ alpha=0.25 đến alpha=2, thời gian đổi từ 11.104 s sang 39.347 s (+254.3%).
 Số láng giềng lớn hơn có thể làm giảm lợi thế của KD-Tree vì truy vấn cần trả về nhiều điểm hơn; chỉ kết luận cơ chế này phù hợp với kết quả nếu số láng giềng thực đo và thời gian cùng ủng hộ nhận xét, không suy ra quan hệ nhân quả chỉ từ lý thuyết.
 
 ### 4.3. Bin seeding giảm bao nhiêu seed và thời gian?
@@ -128,16 +128,16 @@ So sánh `custom_kdtree_bin` với `custom_kdtree` tại cùng n và h. Phần t
 
 | n | Seed không bin | Seed có bin | Seed giảm | Seed giảm (%) | Số cụm không bin | Số cụm có bin | Thời gian không bin (s) | Thời gian có bin (s) | Thời gian tiết kiệm (s) | Thời gian tiết kiệm (%) | Speedup có bin (×) |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 500 | 500 | 48 | 452 | +90.4% | 6 | 5 | 0.20716 | 0.012405 | +0.19476 | +94.0% | 16.700 |
-| 1000 | 1e+03 | 56 | 944 | +94.4% | 5 | 4 | 0.63612 | 0.029237 | +0.60688 | +95.4% | 21.757 |
-| 2000 | 2e+03 | 60 | 1940 | +97.0% | 6 | 6 | 2.2217 | 0.036363 | +2.1854 | +98.4% | 61.099 |
-| 5000 | 5e+03 | 68 | 4932 | +98.6% | 6 | 5 | 17.947 | 0.11153 | +17.835 | +99.4% | 160.914 |
-| 10000 | 1e+04 | 73 | 9927 | +99.3% | 4 | 5 | 40.419 | 0.31255 | +40.107 | +99.2% | 129.323 |
-| 20000 | 2e+04 | 81 | 1.992e+04 | +99.6% | 4 | 5 | 445.33 | 0.49739 | +444.83 | +99.9% | 895.326 |
-| 50000 | — | 87 | — | — | — | 6 | — | 1.226 | — | — | — |
+| 500 | 500 | 48 | 452 | +90.4% | 6 | 5 | 0.13937 | 0.0914 | +0.047972 | +34.4% | 1.525 |
+| 1000 | 1000 | 56 | 944 | +94.4% | 5 | 4 | 0.45459 | 0.14512 | +0.30946 | +68.1% | 3.132 |
+| 2000 | 2000 | 60 | 1940 | +97.0% | 6 | 6 | 1.6671 | 0.24293 | +1.4242 | +85.4% | 6.862 |
+| 5000 | 5000 | 68 | 4932 | +98.6% | 6 | 5 | 25.852 | 0.63222 | +25.219 | +97.6% | 40.890 |
+| 10000 | 10000 | 73 | 9927 | +99.3% | 4 | 5 | 86.883 | 1.1869 | +85.696 | +98.6% | 73.202 |
+| 20000 | — | 81 | — | — | — | 5 | — | 2.183 | — | — | — |
+| 50000 | — | 87 | — | — | — | 6 | — | 5.462 | — | — | — |
 
-Mức giảm seed lớn nhất theo tỷ lệ là +99.6% tại n=20,000 (từ 20000 xuống 81 seed).
-Mức tiết kiệm thời gian lớn nhất theo tỷ lệ là +99.9% tại n=20,000 (+444.83 s; speedup=895.326×). Số âm nghĩa là bin seeding chậm hơn KD-Tree không bin ở cấu hình đó.
+Mức giảm seed lớn nhất theo tỷ lệ là +99.3% tại n=10,000 (từ 10000 xuống 73 seed).
+Mức tiết kiệm thời gian lớn nhất theo tỷ lệ là +98.6% tại n=10,000 (+85.696 s; speedup=73.202×). Số âm nghĩa là bin seeding chậm hơn KD-Tree không bin ở cấu hình đó.
 Cần đọc đồng thời cột số cụm: giảm seed/tăng tốc không tự động có nghĩa là kết quả phân cụm giữ nguyên. Bảng E3 ghi số cụm để đối chiếu; đánh giá sai khác chất lượng phân cụm chi tiết thuộc các thực nghiệm phù hợp như E1/E6.
 
 ## 5. Biểu đồ
