@@ -1,0 +1,84 @@
+{
+  "task": "E3 — runtime and memory",
+  "config": {
+    "dataset": {
+      "centers": 5,
+      "cluster_std": 1.0,
+      "dimensions": 2,
+      "random_state": 0,
+      "reference_n": 2000,
+      "bandwidth_quantile": 0.1,
+      "bandwidth_n_samples": null
+    },
+    "n_sweep": {
+      "values": [
+        500,
+        1000,
+        2000,
+        5000,
+        10000,
+        20000,
+        50000
+      ]
+    },
+    "h_sweep": {
+      "n": 5000,
+      "alphas": [
+        0.25,
+        0.5,
+        1.0,
+        2.0
+      ]
+    },
+    "benchmark": {
+      "repeats": 3,
+      "timeout_seconds": 600,
+      "max_iter": 300,
+      "tol": 0.001
+    },
+    "outputs": {
+      "directory": "results/e3",
+      "report": "report/THUC_NGHIEM_E3.md"
+    }
+  },
+  "config_file": "configs\\e3_runtime.yaml",
+  "h0": 1.5541824262843624,
+  "repeats": 3,
+  "timeout_seconds": 600.0,
+  "quick_mode": false,
+  "methods": [
+    "custom_brute",
+    "custom_kdtree",
+    "custom_kdtree_bin",
+    "sklearn",
+    "sklearn_bin"
+  ],
+  "method_labels": {
+    "custom_brute": "Custom brute",
+    "custom_kdtree": "Custom KD-Tree",
+    "custom_kdtree_bin": "Custom KD-Tree + bin seeding",
+    "sklearn": "sklearn (bin seeding off)",
+    "sklearn_bin": "sklearn (bin seeding on)"
+  },
+  "environment": {
+    "cpu": "Intel64 Family 6 Model 186 Stepping 3, GenuineIntel",
+    "logical_cpu_count": 12,
+    "ram_gb": 15.692,
+    "operating_system": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.6 (tags/v3.13.6:4e66535, Aug  6 2025, 14:36:00) [MSC v.1944 64 bit (AMD64)]",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "scikit_learn": "1.9.1",
+    "script": "experiments/e3_runtime.py",
+    "measurement_protocol": "runtime: perf_counter around fit with no tracemalloc/wrappers; memory: separate tracemalloc fit with no wrappers; diagnostics: separate fit with neighbor/iteration wrappers",
+    "memory_measurement": "tracemalloc peak Python-traced memory; not total native/process RSS"
+  },
+  "raw_csv": "results\\e3\\e3_runs.csv",
+  "summary_csv": "results\\e3\\e3_summary.csv",
+  "measurement_protocol": {
+    "time": "repeated fit runs with perf_counter; tracemalloc off; no instrumentation wrappers",
+    "memory": "one separate fit run with tracemalloc; no instrumentation wrappers",
+    "diagnostics": "one separate fit run with wrappers for neighbor and iteration statistics; its elapsed time is not used"
+  },
+  "note": "tracemalloc peak is Python-traced memory, not complete process RSS. Bandwidth quantile defaults to 0.1; inspect median_n_clusters in the report."
+}
