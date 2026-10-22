@@ -434,11 +434,10 @@ def _fit_worker(
                     n_clusters = int(len(np.unique(labels[labels >= 0])))
 
             mean_iterations = float("nan")
-            # MeanShiftCustom exposes per-seed iteration counts. In sklearn,
-            # per-seed counts are captured only in the diagnostic pass.
+            # MeanShiftCustom exposes per-seed iteration counts. sklearn's n_iter_
+            # is the MAX over seeds, so it is not used as a mean; sklearn per-seed
+            # counts come from stats["iterations"] in the diagnostic pass only.
             per_seed_iterations = getattr(estimator, "seed_n_iter_", None)
-            if per_seed_iterations is None:
-                per_seed_iterations = getattr(estimator, "n_iter_", None)
             if per_seed_iterations is not None:
                 try:
                     arr = np.asarray(per_seed_iterations, dtype=float).ravel()
@@ -744,7 +743,9 @@ def _run_one_config(writer, file_obj, all_rows, X, cfg, experiment, n, h, alpha,
             "diagnostics", 0, random_state,
             _skipped_result("skipped_after_timeout", "bỏ phép đo chẩn đoán sau timeout đo bộ nhớ"),
         )
-        return True
+        # Lượt đo bộ nhớ chậm hơn vì tracemalloc; timeout ở đây không có nghĩa
+        # fit thật quá 10 phút, nên KHÔNG bỏ các n/alpha lớn hơn.
+        return False
 
     # Neighbor and sklearn per-seed iteration instrumentation is isolated from
     # both official time and memory figures to avoid measurement overhead.
@@ -759,7 +760,8 @@ def _run_one_config(writer, file_obj, all_rows, X, cfg, experiment, n, h, alpha,
         f"mean_neighbors={diag_result['mean_neighbors_per_query'] if math.isfinite(float(diag_result['mean_neighbors_per_query'])) else 'NA'}",
         flush=True,
     )
-    return diag_result["status"] == "timeout"
+    # Chỉ timeout ở lượt đo thời gian (xử lý ở trên) mới bỏ các n/alpha lớn hơn.
+    return False
 
 
 def _run_sweep_n(writer: csv.DictWriter, f, cfg: dict[str, Any], h0: float,
@@ -1016,6 +1018,13 @@ def write_report(report_path: Path, cfg: dict[str, Any], h0: float, env: dict[st
         except (TypeError, ValueError):
             return "—"
 
+    def fmt_int(value: Any) -> str:
+        try:
+            number = float(value)
+            return f"{number:.0f}" if math.isfinite(number) else "—"
+        except (TypeError, ValueError):
+            return "—"
+
     lines = [
         "# Thực nghiệm E3 — Tốc độ và bộ nhớ",
         "",
@@ -1049,8 +1058,8 @@ def write_report(report_path: Path, cfg: dict[str, Any], h0: float, env: dict[st
             if r:
                 lines.append(
                     f"| {int(n)} | {METHOD_LABELS[method]} | {fmt(r.get('median_time_s'))} | {fmt(r.get('iqr_time_s'))} | "
-                    f"{fmt(r.get('median_peak_memory_mb'))} | {fmt(r.get('median_n_clusters'), 3)} | "
-                    f"{fmt(r.get('median_n_seeds'), 3)} | {fmt(r.get('mean_neighbors_per_query'))} | {fmt(r.get('mean_iterations'))} |"
+                    f"{fmt(r.get('median_peak_memory_mb'))} | {fmt_int(r.get('median_n_clusters'))} | "
+                    f"{fmt_int(r.get('median_n_seeds'))} | {fmt(r.get('mean_neighbors_per_query'))} | {fmt(r.get('mean_iterations'))} |"
                 )
             else:
                 lines.append(f"| {int(n)} | {METHOD_LABELS[method]} | — | — | — | — | — | — | — |")
@@ -1068,8 +1077,8 @@ def write_report(report_path: Path, cfg: dict[str, Any], h0: float, env: dict[st
             if r:
                 lines.append(
                     f"| {float(alpha):g} | {h:.5g} | {METHOD_LABELS[method]} | {fmt(r.get('median_time_s'))} | {fmt(r.get('iqr_time_s'))} | "
-                    f"{fmt(r.get('median_peak_memory_mb'))} | {fmt(r.get('median_n_clusters'), 3)} | "
-                    f"{fmt(r.get('median_n_seeds'), 3)} | {fmt(r.get('mean_neighbors_per_query'))} | {fmt(r.get('mean_iterations'))} |"
+                    f"{fmt(r.get('median_peak_memory_mb'))} | {fmt_int(r.get('median_n_clusters'))} | "
+                    f"{fmt_int(r.get('median_n_seeds'))} | {fmt(r.get('mean_neighbors_per_query'))} | {fmt(r.get('mean_iterations'))} |"
                 )
             else:
                 lines.append(f"| {float(alpha):g} | {h:.5g} | {METHOD_LABELS[method]} | — | — | — | — | — | — | — |")
@@ -1276,7 +1285,7 @@ def write_report(report_path: Path, cfg: dict[str, Any], h0: float, env: dict[st
         s0, s1 = numeric(kd, "median_n_seeds"), numeric(kdb, "median_n_seeds")
         if t0 is None or t1 is None or t0 <= 0 or t1 <= 0:
             c0, c1 = numeric(kd, "median_n_clusters"), numeric(kdb, "median_n_clusters")
-            lines.append(f"| {n} | {fmt(s0, 3)} | {fmt(s1, 3)} | — | — | {fmt(c0, 3)} | {fmt(c1, 3)} | {fmt(t0)} | {fmt(t1)} | — | — | — |")
+            lines.append(f"| {n} | {fmt_int(s0)} | {fmt_int(s1)} | — | — | {fmt_int(c0)} | {fmt_int(c1)} | {fmt(t0)} | {fmt(t1)} | — | — | — |")
             continue
         seed_saved = (s0 - s1) if s0 is not None and s1 is not None else None
         seed_pct = pct_change(s0, s1) if s0 is not None and s0 > 0 and s1 is not None else None
@@ -1287,8 +1296,8 @@ def write_report(report_path: Path, cfg: dict[str, Any], h0: float, env: dict[st
         speedup = t0 / t1
         c0, c1 = numeric(kd, "median_n_clusters"), numeric(kdb, "median_n_clusters")
         lines.append(
-            f"| {n} | {fmt(s0, 3)} | {fmt(s1, 3)} | {fmt(seed_saved, 4)} | {pct_text(seed_pct_saved)} | "
-            f"{fmt(c0, 3)} | {fmt(c1, 3)} | {t0:.5g} | {t1:.5g} | {seconds_saved:+.5g} | {pct_text(time_pct_saved)} | {speedup:.3f} |"
+            f"| {n} | {fmt_int(s0)} | {fmt_int(s1)} | {fmt_int(seed_saved)} | {pct_text(seed_pct_saved)} | "
+            f"{fmt_int(c0)} | {fmt_int(c1)} | {t0:.5g} | {t1:.5g} | {seconds_saved:+.5g} | {pct_text(time_pct_saved)} | {speedup:.3f} |"
         )
         bin_rows.append({
             "n": float(n), "time_without": t0, "time_with": t1, "seconds_saved": seconds_saved,
@@ -1432,7 +1441,7 @@ def main() -> int:
     metadata = {
         "task": "E3 — runtime and memory",
         "config": cfg,
-        "config_file": str(config_path.relative_to(ROOT)) if config_path.is_relative_to(ROOT) else str(config_path),
+        "config_file": config_path.relative_to(ROOT).as_posix() if config_path.is_relative_to(ROOT) else str(config_path),
         "h0": h0,
         "repeats": repeats,
         "timeout_seconds": timeout,
@@ -1440,8 +1449,8 @@ def main() -> int:
         "methods": METHODS,
         "method_labels": METHOD_LABELS,
         "environment": env,
-        "raw_csv": str(raw_path.relative_to(ROOT)) if raw_path.is_relative_to(ROOT) else str(raw_path),
-        "summary_csv": str((out_dir / "e3_summary.csv").relative_to(ROOT)) if out_dir.is_relative_to(ROOT) else str(out_dir / "e3_summary.csv"),
+        "raw_csv": raw_path.relative_to(ROOT).as_posix() if raw_path.is_relative_to(ROOT) else str(raw_path),
+        "summary_csv": (out_dir / "e3_summary.csv").relative_to(ROOT).as_posix() if out_dir.is_relative_to(ROOT) else str(out_dir / "e3_summary.csv"),
         "measurement_protocol": {
             "time": "repeated fit runs with perf_counter; tracemalloc off; no instrumentation wrappers",
             "memory": "one separate fit run with tracemalloc; no instrumentation wrappers",
