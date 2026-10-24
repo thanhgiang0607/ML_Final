@@ -71,11 +71,11 @@ Theo kết quả tổng hợp của lần chạy đủ 10 seed, các giá trị 
 
 | Bộ dữ liệu | Alpha tốt nhất | ARI trung bình | Số cụm trung bình |
 |---|---:|---:|---:|
-| blobs | 0,336933 | 0,969439 | 3,9 |
-| blobs_aniso | 0,547723 | 0,763562 | 3,0 |
-| blobs_varied | 0,547723 | 0,750278 | 5,9 |
-| circles | 0,547723 | 0,128177 | 8,9 |
-| moons | 0,698344 | 0,284622 | 5,6 |
+| blobs | 0,264262 | 0,962113 | 4,1 |
+| blobs_aniso | 0,547723 | 0,741091 | 2,9 |
+| blobs_varied | 0,698344 | 0,711799 | 3,5 |
+| circles | 0,547723 | 0,131864 | 8,8 |
+| moons | 1,000000 | 0,546367 | 2,0 |
 
 Kết quả cho thấy không có một giá trị alpha duy nhất đạt kết quả tốt nhất trên tất cả các bộ dữ liệu. Điều này cho thấy việc lựa chọn bandwidth cần xét đến cấu trúc và đặc điểm phân bố của dữ liệu.
 
@@ -87,21 +87,22 @@ Bandwidth cơ sở tương ứng với alpha = 1. So sánh ARI trung bình tại
 
 | Bộ dữ liệu | ARI tại alpha = 1 | ARI tốt nhất | Chênh lệch ARI |
 |---|---:|---:|---:|
-| blobs | 0,537290 | 0,969439 | +0,432149 |
-| blobs_varied | 0,681227 | 0,750278 | +0,069051 |
-| blobs_aniso | 0,657070 | 0,763562 | +0,106492 |
-| moons | 0,000000 | 0,284622 | +0,284622 |
-| circles | 0,000000 | 0,128177 | +0,128177 |
+| blobs | 0,442359 | 0,962113 | +0,519754 |
+| blobs_varied | 0,627023 | 0,711799 | +0,084776 |
+| blobs_aniso | 0,639829 | 0,741091 | +0,101263 |
+| moons | 0,546367 | 0,546367 | 0,000000 |
+| circles | 0,000000 | 0,131864 | +0,131864 |
 
 Các kết quả cho thấy việc điều chỉnh bandwidth có thể cải thiện chất lượng phân cụm so với bandwidth cơ sở. Mức cải thiện khác nhau giữa các bộ dữ liệu, cho thấy hiệu quả của việc điều chỉnh phụ thuộc vào đặc điểm dữ liệu.
 
+
 ## 6. Nhận xét
 
-Thực nghiệm cho thấy bandwidth là tham số quan trọng của Mean Shift. Bandwidth quá nhỏ có thể khiến thuật toán tạo ra nhiều cụm, trong khi bandwidth quá lớn có thể làm mất đi cấu trúc cụm ban đầu.
+Kết quả thực nghiệm cho thấy bandwidth ảnh hưởng đáng kể đến chất lượng phân cụm của Mean Shift. Giá trị alpha có ARI trung bình cao nhất khác nhau giữa các bộ dữ liệu, cho thấy không có một cấu hình bandwidth duy nhất phù hợp với mọi dạng phân bố.
 
-Giá trị alpha tối ưu không giống nhau giữa các bộ dữ liệu. Đặc biệt, kết quả trên `blobs` tốt hơn rõ rệt khi điều chỉnh bandwidth so với cấu hình alpha = 1. Với `moons` và `circles`, ARI vẫn tương đối thấp ngay cả tại giá trị alpha tốt nhất trong phạm vi khảo sát. Điều này cho thấy chỉ điều chỉnh bandwidth có thể chưa đủ để Mean Shift xử lý tốt các cấu trúc dữ liệu này.
+Đối với blobs, việc điều chỉnh bandwidth giúp ARI trung bình tăng từ 0,442359 lên 0,962113. Với blobs_varied và blobs_aniso, mức cải thiện lần lượt là 0,084776 và 0,101263. Trong khi đó, moons đạt ARI trung bình cao nhất tại alpha = 1, nên việc điều chỉnh bandwidth trong phạm vi khảo sát không giúp cải thiện chỉ số này. Với circles, ARI tốt nhất vẫn thấp, cho thấy cấu hình được khảo sát chưa tạo ra kết quả phân cụm tốt theo nhãn tham chiếu.
 
-Vì vậy, bandwidth cơ sở nên được xem là điểm xuất phát. Khi áp dụng thuật toán vào dữ liệu thực tế, cần khảo sát thêm các giá trị bandwidth và đánh giá kết quả bằng nhiều chỉ số thay vì chỉ dựa vào số lượng cụm.
+Nhìn chung, bandwidth cơ sở có thể được dùng làm điểm xuất phát, nhưng nên khảo sát thêm các giá trị khác khi áp dụng Mean Shift. Việc lựa chọn tham số cần dựa trên đặc điểm dữ liệu và nhiều chỉ số đánh giá, thay vì chỉ dựa vào số lượng cụm.
 
 ## 7. Giới hạn thực nghiệm
 
