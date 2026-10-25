@@ -40,6 +40,8 @@ Các cấu hình chính:
 | Số giá trị alpha | 16 |
 | Khoảng alpha | Từ 0,1 đến 3,0 |
 | Phương pháp chọn bandwidth | `h = alpha * h0` |
+| `h0` | `estimate_bandwidth(X, quantile=0.3)`, giống E2 |
+| Mean Shift | `MeanShiftCustom`, kernel phẳng, tìm láng giềng bằng KD-Tree |
 | `bin_seeding` | `True` |
 | Số lần chạy để đo thời gian cho mỗi cấu hình | 3 |
 | Thống kê thời gian | Trung vị của 3 lần chạy |
@@ -61,64 +63,55 @@ Các kết quả được tổng hợp theo từng bộ dữ liệu và giá tr�
 
 ### 5.1. Ảnh hưởng của alpha đến kết quả phân cụm
 
-Biểu đồ `e4_synthetic.png` thể hiện sự thay đổi của số cụm và ARI theo alpha trên cả 5 bộ dữ liệu. Đường đánh dấu alpha = 1 thể hiện cấu hình sử dụng bandwidth cơ sở.
+Biểu đồ `e4_synthetic.png` gồm 2 hình: bên trái là số cụm theo alpha (trục y thang log, đường chấm là số cụm thật), bên phải là ARI theo alpha. Mỗi đường là trung bình qua 10 seed, dải màu là ± 1 độ lệch chuẩn. Đường đứt nét đen đánh dấu alpha = 1 (h mặc định).
 
-Nhìn chung, bandwidth ảnh hưởng trực tiếp đến kết quả phân cụm. Khi bandwidth nhỏ, thuật toán có thể phát hiện nhiều cụm nhỏ; khi bandwidth tăng, các cụm gần nhau có thể bị gộp lại. Vì vậy, lựa chọn bandwidth cần cân nhắc đặc điểm phân bố của từng bộ dữ liệu.
+Hình bên trái cho thấy xu hướng chung trên cả 5 bộ: alpha nhỏ thì số cụm tăng vọt (ví dụ blobs_varied ra khoảng 270 cụm ở alpha = 0,1), alpha lớn thì các cụm bị gộp dần về 1 cụm. Số cụm cắt đường số cụm thật ở alpha nhỏ hơn 1 với blobs, blobs_varied và blobs_aniso; với cả ba bộ này, tại alpha = 1 thuật toán chỉ còn trung bình 2,3 cụm.
 
-### 5.2. Alpha cho ARI trung bình cao nhất theo từng bộ dữ liệu
+### 5.2. Alpha tốt nhất và khoảng alpha an toàn
 
-Theo kết quả tổng hợp của lần chạy đủ 10 seed, các giá trị alpha có ARI trung bình cao nhất theo từng bộ dữ liệu như sau:
+Bảng dưới lấy từ `results/e4/e4_synthetic_alpha_summary.csv`. "Alpha tốt nhất" là alpha có ARI trung bình (qua 10 seed) cao nhất. "Khoảng an toàn" gồm các alpha có ARI trung bình ≥ 90% ARI tốt nhất của bộ đó: khoảng càng rộng thì thuật toán càng ít nhạy với việc chọn h.
 
-| Bộ dữ liệu | Alpha tốt nhất | ARI trung bình | Số cụm trung bình |
-|---|---:|---:|---:|
-| blobs | 0,264262 | 0,962113 | 4,1 |
-| blobs_aniso | 0,547723 | 0,741091 | 2,9 |
-| blobs_varied | 0,698344 | 0,711799 | 3,5 |
-| circles | 0,547723 | 0,131864 | 8,8 |
-| moons | 1,000000 | 0,546367 | 2,0 |
+| Bộ dữ liệu | Số cụm thật | Alpha tốt nhất | ARI tốt nhất (số cụm) | ARI tại alpha = 1 (số cụm) | Chênh lệch ARI | Khoảng an toàn | alpha = 1 nằm trong? |
+|---|---:|---:|---:|---:|---:|---|:-:|
+| blobs | 4 | 0,26 | 0,962 (4,1) | 0,442 (2,3) | +0,520 | 0,16 – 0,43 | Không |
+| blobs_varied | 3 | 0,70 | 0,712 (3,5) | 0,627 (2,3) | +0,085 | 0,43 – 0,89 | Không |
+| blobs_aniso | 3 | 0,55 | 0,741 (2,9) | 0,640 (2,3) | +0,101 | 0,43 – 0,70 | Không |
+| moons | 2 | 1,00 | 0,546 (2,0) | 0,546 (2,0) | 0 | 0,70 – 1,14 | Có |
+| circles | 2 | 0,55 | 0,132 (8,8) | 0,000 (1,0) | +0,132 | (không có ý nghĩa) | – |
 
-Kết quả cho thấy không có một giá trị alpha duy nhất đạt kết quả tốt nhất trên tất cả các bộ dữ liệu. Điều này cho thấy việc lựa chọn bandwidth cần xét đến cấu trúc và đặc điểm phân bố của dữ liệu.
-
-Lưu ý: Cần đối chiếu các giá trị trong bảng với file `results/e4/e4_synthetic_summary.csv` trước khi chốt báo cáo.
-
-### 5.3. So sánh bandwidth cơ sở với giá trị tốt nhất
-
-Bandwidth cơ sở tương ứng với alpha = 1. So sánh ARI trung bình tại alpha = 1 với ARI trung bình cao nhất của từng bộ dữ liệu cho kết quả:
-
-| Bộ dữ liệu | ARI tại alpha = 1 | ARI tốt nhất | Chênh lệch ARI |
-|---|---:|---:|---:|
-| blobs | 0,442359 | 0,962113 | +0,519754 |
-| blobs_varied | 0,627023 | 0,711799 | +0,084776 |
-| blobs_aniso | 0,639829 | 0,741091 | +0,101263 |
-| moons | 0,546367 | 0,546367 | 0,000000 |
-| circles | 0,000000 | 0,131864 | +0,131864 |
-
-Các kết quả cho thấy việc điều chỉnh bandwidth có thể cải thiện chất lượng phân cụm so với bandwidth cơ sở. Mức cải thiện khác nhau giữa các bộ dữ liệu, cho thấy hiệu quả của việc điều chỉnh phụ thuộc vào đặc điểm dữ liệu.
-
+Alpha tốt nhất được chọn bằng chính nhãn thật trên cùng 10 seed dùng để báo cáo, nên cột "ARI tốt nhất" là **cận trên (oracle)**: đó là mức tốt nhất có thể đạt nếu biết trước h đúng, không phải kết quả dùng được khi không có nhãn.
 
 ## 6. Nhận xét
 
-Kết quả thực nghiệm cho thấy bandwidth ảnh hưởng đáng kể đến chất lượng phân cụm của Mean Shift. Giá trị alpha có ARI trung bình cao nhất khác nhau giữa các bộ dữ liệu, cho thấy không có một cấu hình bandwidth duy nhất phù hợp với mọi dạng phân bố.
+**h mặc định thường quá lớn.** Ở 4/5 bộ dữ liệu, alpha = 1 nằm ngoài khoảng an toàn, và alpha tốt nhất luôn ≤ 1 (từ 0,26 đến 1,00). Nghĩa là `estimate_bandwidth(quantile=0.3)` có xu hướng ước lượng h lớn hơn mức cần thiết, khiến các cụm gần nhau bị gộp lại: tại alpha = 1, blobs chỉ ra trung bình 2,3 cụm so với 4 cụm thật, và ARI chỉ còn 0,442, chưa bằng một nửa mức 0,962 đạt được khi alpha = 0,26. Kết quả này khớp với E2 (ARI 0,455 với h mặc định trên blobs).
 
-Đối với blobs, việc điều chỉnh bandwidth giúp ARI trung bình tăng từ 0,442359 lên 0,962113. Với blobs_varied và blobs_aniso, mức cải thiện lần lượt là 0,084776 và 0,101263. Trong khi đó, moons đạt ARI trung bình cao nhất tại alpha = 1, nên việc điều chỉnh bandwidth trong phạm vi khảo sát không giúp cải thiện chỉ số này. Với circles, ARI tốt nhất vẫn thấp, cho thấy cấu hình được khảo sát chưa tạo ra kết quả phân cụm tốt theo nhãn tham chiếu.
+**Độ nhạy khác nhau theo dạng dữ liệu.**
+- blobs có khoảng an toàn rộng nhất (0,16 – 0,43, gồm 5 mức alpha): khi các cụm tách bạch và cùng kích thước, có nhiều giá trị h cho kết quả tốt, chỉ cần h đủ nhỏ để không gộp cụm.
+- blobs_aniso hẹp nhất (0,43 – 0,70, chỉ 3 mức) và có độ lệch chuẩn giữa các seed rất lớn (dải xanh lá trên hình): cụm bị kéo dài nên một h đẳng hướng duy nhất khó vừa với mọi hướng.
+- blobs_varied cũng khó vì các cụm có độ trải khác nhau: h nhỏ thì cụm rộng bị vỡ (khoảng 270 cụm ở alpha = 0,1), h lớn thì cụm hẹp bị gộp. ARI tốt nhất chỉ 0,712.
+- moons là bộ duy nhất mà h mặc định trùng alpha tốt nhất, nhưng ARI cao nhất cũng chỉ 0,546, do Mean-Shift tìm mode mật độ nên không tách được hai hình lưỡi liềm lồng vào nhau.
+- circles thất bại ở mọi h: ARI không vượt quá 0,132, và mức đó đạt được chỉ vì vòng tròn bị cắt thành khoảng 9 mảnh. Từ alpha ≈ 0,7, ARI đã về 0, và từ alpha ≈ 0,9 trở lên toàn bộ dữ liệu gộp thành 1 cụm. Đây là giới hạn của Mean-Shift với cụm không lồi, không phải lỗi cài đặt.
 
-Nhìn chung, bandwidth cơ sở có thể được dùng làm điểm xuất phát, nhưng nên khảo sát thêm các giá trị khác khi áp dụng Mean Shift. Việc lựa chọn tham số cần dựa trên đặc điểm dữ liệu và nhiều chỉ số đánh giá, thay vì chỉ dựa vào số lượng cụm.
+**Thời gian** giảm khi alpha tăng (blobs: khoảng 0,047 s ở alpha = 0,1 xuống khoảng 0,002 s ở alpha = 3), vì h lớn hơn thì lưới bin seeding thô hơn, số seed ít hơn. Với n = 1500 điểm, mọi cấu hình đều chạy dưới 0,06 s nên thời gian không phải yếu tố quyết định khi chọn h.
+
+**Trả lời RQ4.** Mean-Shift khá nhạy với h: trên các bộ dạng cụm, khoảng alpha cho kết quả tốt chỉ rộng khoảng 1,6 – 2,7 lần (ví dụ 0,43 – 0,70), và h mặc định do `estimate_bandwidth(quantile=0.3)` đưa ra thường rơi ra ngoài khoảng này theo hướng quá lớn. Khi dùng Mean-Shift trên dữ liệu thật, nên coi h mặc định là điểm xuất phát và thử thêm các h nhỏ hơn (khoảng 0,3 – 0,7 lần h0), chọn trên tập riêng có nhãn hoặc dựa vào số cụm hợp lý.
 
 ## 7. Giới hạn thực nghiệm
 
-Thực nghiệm chỉ khảo sát alpha trong khoảng từ 0,1 đến 3,0 trên năm bộ dữ liệu tổng hợp. Giá trị tốt nhất được báo cáo là giá trị có ARI trung bình cao nhất trong phạm vi đã thử nghiệm, không đồng nghĩa với giá trị tối ưu cho mọi bộ dữ liệu.
-
-Ngoài ra, nhãn tham chiếu chỉ có sẵn vì đây là dữ liệu tổng hợp. Với dữ liệu thực tế không có nhãn, việc lựa chọn bandwidth cần kết hợp thêm các tiêu chí đánh giá khác.
+- Alpha tốt nhất và khoảng an toàn được xác định bằng nhãn thật trên chính 10 seed đã báo cáo, nên ARI tốt nhất là cận trên. Ở dữ liệu thật không có nhãn, không thể chọn h theo cách này.
+- Chỉ khảo sát alpha từ 0,1 đến 3,0 với 16 mức, trên 5 bộ dữ liệu 2 chiều, 1500 điểm. Ngưỡng 90% cho khoảng an toàn là quy ước của nhóm.
+- Khoảng an toàn được báo cáo bằng alpha nhỏ nhất và lớn nhất thỏa ngưỡng; với cả 5 bộ, các alpha này liền nhau trên lưới.
+- h0 phụ thuộc tham số `quantile` của `estimate_bandwidth`. Nhận xét "h mặc định quá lớn" chỉ đúng với quantile = 0.3 đã dùng (giống E2).
 
 ## 8. Tái lập thực nghiệm
 
 Chạy đầy đủ 10 seed bằng lệnh:
 
-`python experiments/e4_bandwidth.py`
+`python3 experiments/e4_bandwidth.py`
 
 Chạy thử với một seed để kiểm tra nhanh:
 
-`python experiments/e4_bandwidth.py --seeds 1`
+`python3 experiments/e4_bandwidth.py --seeds 1`
 
 ## 9. Đầu ra
 
@@ -126,8 +119,8 @@ Kết quả được lưu trong thư mục `results/e4/`:
 
 | Tệp | Nội dung |
 |---|---|
-| `e4_synthetic_runs.csv` | Kết quả chi tiết của từng cấu hình |
-| `e4_synthetic_summary.csv` | Kết quả tổng hợp theo bộ dữ liệu và alpha |
+| `e4_synthetic_runs.csv` | Kết quả chi tiết của từng (bộ, seed, alpha); không lên git |
+| `e4_synthetic_summary.csv` | Trung bình ± độ lệch chuẩn theo bộ dữ liệu và alpha |
+| `e4_synthetic_alpha_summary.csv` | Theo từng bộ: alpha tốt nhất, ARI tại alpha = 1, khoảng alpha an toàn |
 | `e4_synthetic.png` | Biểu đồ số cụm và ARI theo alpha |
-
-Các bảng số liệu trong báo cáo cần được đối chiếu với những tệp đầu ra tương ứng để bảo đảm thống nhất với lần chạy thực nghiệm cuối cùng.
+| `e4_metadata.json` | Cấu hình, phiên bản thư viện, SHA256 dữ liệu đầu vào |
