@@ -306,7 +306,7 @@ for image_id in load_split("tune"):
 - [ ] `load_image(id) -> (ảnh RGB, mask)`: thu nhỏ cạnh dài về 128 px (mask thu nhỏ cùng cỡ, nearest)
 - [ ] `to_lab(rgb)`: đổi RGB → Lab (thêm `scikit-image` vào `requirements.txt`, ghi trong PR)
 - [ ] `features(img, mode, hs=None, hr=None)`: `"rgb3"` = (R, G, B); `"lab3"` = (L, a, b); `"lab5"` = (x/hs, y/hs, L/hr, a/hr, b/hr)
-- [ ] `labels_to_mask(labels, img)`: quy tắc chung cho **mọi** phương pháp — bỏ cụm phủ phần lớn viền ảnh → chọn cụm tối nhất (L trung bình nhỏ nhất) → lấp lỗ (`scipy.ndimage.binary_fill_holes`) → giữ vùng liền lớn nhất (`scipy.ndimage.label`)
+- [ ] `labels_to_mask(labels, img)`: quy tắc chung cho **mọi** phương pháp — bỏ cụm phủ phần lớn viền ảnh, cụm nằm chủ yếu trên viền (góc tối ống kính) và cụm nhỏ hơn 1% ảnh → chọn cụm tối nhất (L trung bình nhỏ nhất) → lấp lỗ (`scipy.ndimage.binary_fill_holes`) → giữ vùng liền lớn nhất (`scipy.ndimage.label`)
 - [ ] `dice(pred, gt)`, `iou(pred, gt)`
 - [ ] Test nhanh trên 3–5 ảnh, lưu hình kiểm tra `results/e5/check_utils.png`
 

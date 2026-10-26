@@ -15,3 +15,4 @@ results/**
 !results/**/*_metadata.json
 !results/**/*.png
 !results/**/env.txt
+!results/**/best_h_*.json
