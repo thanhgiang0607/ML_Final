@@ -1,0 +1,32 @@
+{
+  "experiment": "E4 part 2 - ISIC tune",
+  "image_ids": [
+    "ISIC_0012255",
+    "ISIC_0012346",
+    "ISIC_0012576",
+    "ISIC_0012585",
+    "ISIC_0012623",
+    "ISIC_0012627",
+    "ISIC_0012633",
+    "ISIC_0012643",
+    "ISIC_0015294",
+    "ISIC_0015351"
+  ],
+  "n_images": 10,
+  "configurations_per_image": 9,
+  "bandwidths": [
+    2,
+    4,
+    6,
+    8,
+    10,
+    12,
+    16,
+    20,
+    "estimate_bandwidth(X) per image"
+  ],
+  "feature_mode": "3D Lab",
+  "model": "MeanShiftCustom(bandwidth=h, bin_seeding=True)",
+  "timing": "median of 1 fit runs",
+  "selection_metric": "mean Dice"
+}
