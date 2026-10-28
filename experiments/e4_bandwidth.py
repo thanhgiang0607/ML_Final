@@ -1,4 +1,6 @@
-"""E4 - Khảo sát độ nhạy của Mean Shift theo bandwidth.
+"""E4 phần 1 - Khảo sát độ nhạy của Mean Shift theo bandwidth trên dữ liệu giả lập.
+
+Phần 2 (ảnh ISIC tune) nằm ở experiments/e4_isic.py.
 
 Chạy:
     python experiments/e4_bandwidth.py

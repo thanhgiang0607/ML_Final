@@ -1,26 +1,29 @@
 {
-  "experiment": "E4 part 2 - ISIC tune, 3D Lab",
-  "best_h_label": "8",
-  "selection_metric": "highest mean Dice on ISIC tune",
-  "mean_bandwidth": 8.0,
-  "mean_dice": 0.4675444338469471,
-  "std_dice": 0.4057075442307363,
-  "mean_iou": 0.3893036120728441,
-  "n_images": 10,
-  "bin_seeding": true,
-  "feature_mode": "lab3",
-  "fixed_bandwidths": [
-    2,
-    4,
-    6,
-    8,
-    10,
-    12,
-    16,
-    20
-  ],
-  "estimated_bandwidth": "estimate_bandwidth(X) once per image",
-  "timing_repeats": 1,
-  "handoff_note": "Nếu best_h_label là estimated, hãy ước lượng bandwidth riêng cho từng ảnh; mean_bandwidth chỉ là giá trị trung bình mô tả, không phải bandwidth cố định thay thế.",
-  "best_h": 8.0
+  "feature": "lab3",
+  "unit": "Lab",
+  "best_h": 8.0,
+  "dice_mean": 0.5668888362013182,
+  "dice_std": 0.35843197029087714,
+  "iou_mean": 0.4798002401660843,
+  "n_clusters_median": 3.0,
+  "n_images": 100,
+  "grid": {
+    "2": 0.0487,
+    "4": 0.3092,
+    "6": 0.449,
+    "8": 0.5669,
+    "10": 0.543,
+    "12": 0.4576,
+    "16": 0.3544,
+    "20": 0.2593,
+    "auto": 0.5591
+  },
+  "auto_bandwidth": {
+    "dice_mean": 0.5591379170952825,
+    "mean_h": 10.93101566224974,
+    "quantile": 0.3,
+    "n_samples": 500
+  },
+  "meanshift": "MeanShiftCustom(flat, kdtree, bin_seeding=True)",
+  "note": "h chọn theo Dice trung bình cao nhất trên tập tune; kết quả cuối cùng phải báo cáo trên tập test (E5)."
 }

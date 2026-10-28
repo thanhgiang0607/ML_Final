@@ -1,31 +1,20 @@
-"""E4 - Khảo sát độ nhạy của Mean Shift theo bandwidth.
+"""E4 phần 2 – Độ nhạy của Mean-Shift theo bandwidth trên ISIC tune (3D Lab).
 
-Gồm 2 phần:
-    Phần 1 - dữ liệu giả lập: h = alpha × h0, 5 bộ × 10 seed.
-    Phần 2 - ISIC tune: 100 ảnh tune, đặc trưng 3D Lab, quét h theo đơn vị Lab.
+Phần 1 (dữ liệu giả lập) nằm ở experiments/e4_bandwidth.py.
 
-Chạy:
-    python3 experiments/e4_bandwidth.py                  # cả 2 phần
-    python3 experiments/e4_bandwidth.py --part synthetic # chỉ phần 1
-    python3 experiments/e4_bandwidth.py --part isic      # chỉ phần 2 (cần data/download_isic.py)
-Chạy nhanh để thử:
-    python3 experiments/e4_bandwidth.py --seeds 1        # phần 1: 1 seed
-    python3 experiments/e4_bandwidth.py --part isic --quick
-                                                         # phần 2: 10 ảnh đầu, kết quả ghi ra thư mục tạm
-                                                         # (không đụng vào results/e4/)
+100 ảnh tune, đặc trưng 3D Lab (isic_utils.features(rgb, "lab3")), MeanShiftCustom(bin_seeding=True),
+h ∈ {2, 4, 6, 8, 10, 12, 16, 20} (đơn vị Lab) + h = estimate_bandwidth của từng ảnh.
+Mask lấy bằng isic_utils.labels_to_mask (quy tắc chung với E5, E6).
 
-Đầu ra phần 1 (results/e4/):
-    e4_synthetic_runs.csv           mỗi dòng: bộ, seed, alpha, h0, h, số cụm, số cụm thật, ARI, NMI, thời gian
-    e4_synthetic_summary.csv        trung bình ± std qua các seed theo (bộ, alpha)
-    e4_synthetic_alpha_summary.csv  theo từng bộ: alpha tốt nhất, ARI tại alpha = 1, khoảng alpha an toàn
-    e4_synthetic.png                số cụm và ARI theo alpha
-    e4_metadata.json                cấu hình, phiên bản thư viện, SHA256 dữ liệu đầu vào
+Chạy (cần python3 data/download_isic.py trước):
+    python3 experiments/e4_isic.py            # 100 ảnh tune, ~25 phút trên Apple M1
+    python3 experiments/e4_isic.py --quick    # 10 ảnh đầu, ghi ra thư mục tạm (không đụng results/e4/)
 
-Đầu ra phần 2 (results/e4/):
-    e4_isic_runs.csv                mỗi dòng: ảnh, h, Dice, IoU, số cụm, thời gian
+Đầu ra (results/e4/):
+    e4_isic_runs.csv                mỗi dòng: ảnh, h, Dice, IoU, số cụm, mask rỗng, thời gian (không lên git)
     e4_isic_summary.csv             trung bình ± std qua các ảnh theo h
-    e4_isic_h.png                   Dice, số cụm và thời gian theo h trên các ảnh tune
-    e4_isic_examples.png            2 ảnh (trung vị, tệ nhất), mỗi ảnh 4 mức h: ảnh gốc, cụm, mask
+    e4_isic_h.png                   Dice/IoU, số cụm và thời gian theo h
+    e4_isic_examples.png            2 ảnh (Dice trung vị, tệ nhất), mỗi ảnh 4 mức h: ảnh gốc, cụm, mask
     best_h_3d_lab.json              h tốt nhất cho 3D Lab (A dùng ở E5)
     e4_isic_metadata.json           cấu hình, phiên bản thư viện, SHA256 file chia tập
 """
@@ -35,37 +24,29 @@ import hashlib
 import json
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker
 import numpy as np
 import pandas as pd
-from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
-from sklearn.preprocessing import StandardScaler
+import scipy
+import sklearn
 
 # Thêm thư mục gốc của project vào đường dẫn tìm kiếm module
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import scipy
-import sklearn
-
-from common import DATASETS, ROOT, load_synthetic, synthetic_path, timeit
+from common import ROOT, timeit
 from meanshift.bandwidth import estimate_bandwidth
 from meanshift.core import MeanShiftCustom
 
-
-# 15 giá trị alpha từ 0.1 đến 3 theo thang logarit
-ALPHAS = np.geomspace(0.1, 3.0, 15)
-DEFAULT_SEEDS = list(range(10))
-# Giống E2: h0 = estimate_bandwidth(X, quantile=0.3)
+# Giống E2 và phần 1: estimate_bandwidth(X, quantile=0.3)
 QUANTILE = 0.3
-# Khoảng alpha "an toàn": ARI trung bình >= SAFE_RATIO × ARI tốt nhất của bộ đó
-SAFE_RATIO = 0.9
 
 # ----- Phần 2: ISIC tune -----
 ISIC_HS = [2, 4, 6, 8, 10, 12, 16, 20]  # bandwidth theo đơn vị Lab
@@ -74,191 +55,6 @@ ISIC_N_SAMPLES = 500   # estimate_bandwidth chỉ lấy mẫu 500 pixel (cả �
 ISIC_REPEAT = 3        # số lần đo thời gian cho mỗi (ảnh, h), lấy trung vị
 QUICK_IMAGES = 10      # --quick: chỉ chạy 10 ảnh đầu của tập tune
 N_EXAMPLE_LEVELS = 4   # số mức h trong hình ví dụ
-
-
-def load_scaled(dataset, seed):
-    """Đọc dữ liệu synthetic và chuẩn hóa giống thí nghiệm E2."""
-    X, y = load_synthetic(dataset, seed)
-    X = StandardScaler().fit_transform(X)
-    return X, y
-
-
-def run_one(dataset, seed, alpha):
-    """Chạy một cấu hình bandwidth và trả về kết quả."""
-    X, y_true = load_scaled(dataset, seed)
-
-    # Bandwidth mặc định được ước lượng từ dữ liệu
-    h0 = estimate_bandwidth(X, quantile=QUANTILE)
-
-    # Tránh chạy thuật toán với bandwidth không hợp lệ
-    if not np.isfinite(h0) or h0 <= 0:
-        raise ValueError(
-            f"Bandwidth mặc định không hợp lệ: dataset={dataset}, "
-            f"seed={seed}, h0={h0}"
-        )
-
-    h = float(alpha * h0)
-
-    # Đo thời gian 3 lần, lấy trung vị
-    elapsed_times = []
-    labels = None
-
-    for _ in range(3):
-        model = MeanShiftCustom(
-            bandwidth=h,
-            bin_seeding=True,
-            neighbor_search="kdtree",
-        )
-
-        start = time.perf_counter()
-        model.fit(X)
-        elapsed_times.append(time.perf_counter() - start)
-
-        labels = model.labels_
-
-    y_pred = np.asarray(labels)
-    n_clusters = len(set(y_pred)) - (1 if -1 in y_pred else 0)
-
-    return {
-        "dataset": dataset,
-        "seed": seed,
-        "alpha": float(alpha),
-        "h0": float(h0),
-        "bandwidth": h,
-        "n_clusters": int(n_clusters),
-        "n_true_clusters": int(len(np.unique(y_true))),
-        "ari": float(adjusted_rand_score(y_true, y_pred)),
-        "nmi": float(normalized_mutual_info_score(y_true, y_pred)),
-        "time_seconds": float(np.median(elapsed_times)),
-    }
-
-
-def summarize_results(runs):
-    """Tổng hợp trung bình và độ lệch chuẩn theo dataset, alpha."""
-    summary = (
-        runs.groupby(["dataset", "alpha"], as_index=False)
-        .agg(
-            n_true_clusters=("n_true_clusters", "first"),
-            n_clusters_mean=("n_clusters", "mean"),
-            n_clusters_std=("n_clusters", "std"),
-            ari_mean=("ari", "mean"),
-            ari_std=("ari", "std"),
-            nmi_mean=("nmi", "mean"),
-            nmi_std=("nmi", "std"),
-            time_mean=("time_seconds", "mean"),
-            time_std=("time_seconds", "std"),
-        )
-    )
-
-    # Với trường hợp chỉ có 1 seed, độ lệch chuẩn là NaN.
-    std_columns = [col for col in summary.columns if col.endswith("_std")]
-    summary[std_columns] = summary[std_columns].fillna(0)
-
-    return summary
-
-
-def alpha_table(summary):
-    """Theo từng bộ: alpha tốt nhất, ARI tại alpha = 1 và khoảng alpha an toàn.
-
-    Alpha tốt nhất được chọn bằng nhãn thật trên chính các seed đã chạy,
-    nên ARI tốt nhất là cận trên (oracle), không phải kết quả dùng được khi không có nhãn.
-    """
-    rows = []
-    for dataset in DATASETS:
-        data = summary[summary["dataset"] == dataset].sort_values("alpha")
-        best = data.loc[data["ari_mean"].idxmax()]
-        default = data.loc[(data["alpha"] - 1.0).abs().idxmin()]
-        safe = data[data["ari_mean"] >= SAFE_RATIO * best["ari_mean"]]
-        rows.append({
-            "dataset": dataset,
-            "n_true_clusters": int(best["n_true_clusters"]),
-            "best_alpha": float(best["alpha"]),
-            "best_ari": float(best["ari_mean"]),
-            "best_n_clusters": float(best["n_clusters_mean"]),
-            "default_ari": float(default["ari_mean"]),
-            "default_n_clusters": float(default["n_clusters_mean"]),
-            "ari_gap": float(best["ari_mean"] - default["ari_mean"]),
-            "safe_alpha_min": float(safe["alpha"].min()),
-            "safe_alpha_max": float(safe["alpha"].max()),
-            "safe_n_alphas": int(len(safe)),
-            "default_in_safe": bool((safe["alpha"] == default["alpha"]).any()),
-        })
-    return pd.DataFrame(rows)
-
-
-def plot_results(summary, output_path):
-    """Vẽ số cụm và ARI theo alpha, trung bình ± độ lệch chuẩn."""
-    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
-
-    for i, dataset in enumerate(DATASETS):
-        color = f"C{i}"
-        data = summary[summary["dataset"] == dataset].sort_values("alpha")
-
-        x = data["alpha"].to_numpy()
-
-        # Số cụm trung bình ± độ lệch chuẩn
-        y_clusters = data["n_clusters_mean"].to_numpy()
-        err_clusters = data["n_clusters_std"].to_numpy()
-
-        axes[0].plot(x, y_clusters, marker="o", color=color, label=dataset)
-        # Trục y dạng log nên chặn dưới ở 1 cụm
-        axes[0].fill_between(
-            x,
-            np.maximum(y_clusters - err_clusters, 1),
-            y_clusters + err_clusters,
-            color=color,
-            alpha=0.15,
-        )
-        # Số cụm thật của bộ dữ liệu
-        axes[0].axhline(
-            data["n_true_clusters"].iloc[0],
-            color=color,
-            linestyle=":",
-            linewidth=1,
-        )
-
-        # ARI trung bình ± độ lệch chuẩn
-        y_ari = data["ari_mean"].to_numpy()
-        err_ari = data["ari_std"].to_numpy()
-
-        axes[1].plot(x, y_ari, marker="o", color=color, label=dataset)
-        # ARI không vượt quá 1; phía dưới chặn ở 0 cho dễ đọc
-        axes[1].fill_between(
-            x,
-            np.clip(y_ari - err_ari, 0, 1),
-            np.clip(y_ari + err_ari, 0, 1),
-            color=color,
-            alpha=0.15,
-        )
-
-    for ax in axes:
-        ax.set_xscale("log")
-        ax.axvline(
-            x=1.0,
-            color="black",
-            linestyle="--",
-            linewidth=1.5,
-            label="alpha = 1 (h mặc định)",
-        )
-        ax.set_xlabel("Alpha (h = alpha × h0)")
-        ax.grid(True, alpha=0.3)
-
-    axes[0].set_yscale("log")
-    axes[0].set_title("Độ nhạy số lượng cụm theo bandwidth\n(đường chấm: số cụm thật)")
-    axes[0].set_ylabel("Số cụm (thang log)")
-    axes[1].set_title("Độ nhạy ARI theo bandwidth")
-    axes[1].set_ylabel("ARI")
-    axes[1].set_ylim(-0.02, 1.02)
-
-    # Tránh lặp nhãn alpha=1 trong chú giải
-    for ax in axes:
-        handles, labels = ax.get_legend_handles_labels()
-        unique = dict(zip(labels, handles))
-        ax.legend(unique.values(), unique.keys(), fontsize=8)
-
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
 
 
 # =====================================================================
@@ -362,7 +158,7 @@ def plot_isic_h(summary, output_path, n_images):
     ax.axvline(best["h_mean"], color="gray", linestyle=":", linewidth=1.2)
     ax.annotate(f"h tốt nhất = {best['h_mean']:g}\nDice = {best['dice_mean']:.3f}",
                 xy=(best["h_mean"], best["dice_mean"]),
-                xytext=(10, -45), textcoords="offset points", fontsize=9,
+                xytext=(25, 40), textcoords="offset points", fontsize=9,
                 arrowprops={"arrowstyle": "->", "color": "gray"})
     ax.set_title(f"Độ nhạy Dice/IoU theo h ({n_images} ảnh tune, 3D Lab)")
     ax.set_xlabel("Bandwidth h (đơn vị Lab)")
@@ -376,8 +172,10 @@ def plot_isic_h(summary, output_path, n_images):
     ax.axhline(auto["n_clusters_median"], color="C3", linestyle="--", linewidth=1.2,
                label=f"Trung vị, h = estimate_bandwidth ({auto['n_clusters_median']:g})")
     ax.set_yscale("log")
-    ax.yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())  # 2, 5, 10 thay vì 2×10⁰
-    ax.yaxis.set_minor_formatter(matplotlib.ticker.ScalarFormatter())
+    # Vạch cố định, ghi số thường (2, 5, 10 thay vì 2×10⁰); tắt nhãn vạch phụ để chữ không chồng nhau
+    ax.set_yticks([1, 2, 3, 5, 10, 20, 50, 100, 200])
+    ax.yaxis.set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
     ax.set_title("Số cụm theo h")
     ax.set_xlabel("Bandwidth h (đơn vị Lab)")
     ax.set_ylabel("Số cụm mỗi ảnh (thang log)")
@@ -550,121 +348,19 @@ def run_isic(quick=False):
     ]].round(3).to_string(index=False))
     print(f"\nh tốt nhất (Lab): {best_h:g} · Dice trung bình {best['dice_mean']:.3f} "
           f"· h = estimate_bandwidth: Dice {auto['dice_mean']:.3f}")
-    print(f"=> Gửi chị A dùng cho E5: {best_path.name}")
-
-
-def run_synthetic(seeds):
-    """Phần 1: quét alpha trên dữ liệu giả lập."""
-    output_dir = ROOT / "results" / "e4"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    all_runs = []
-
-    # BỔ SUNG: giữ 15 alpha ban đầu và thêm alpha = 1.0
-    alphas_to_run = sorted(set(ALPHAS.tolist() + [1.0]))
-
-    # Sửa tổng số lần chạy để tính đủ 16 alpha
-    total = len(DATASETS) * len(seeds) * len(alphas_to_run)
-    current = 0
-
-    for dataset in DATASETS:
-        for seed in seeds:
-            for alpha in alphas_to_run:
-                current += 1
-                print(
-                    f"[{current}/{total}] "
-                    f"dataset={dataset}, seed={seed}, alpha={alpha:.4f}"
-                )
-
-                result = run_one(dataset, seed, alpha)
-                all_runs.append(result)
-
-    runs = pd.DataFrame(all_runs)
-    summary = summarize_results(runs)
-    table = alpha_table(summary)
-
-    runs_path = output_dir / "e4_synthetic_runs.csv"
-    summary_path = output_dir / "e4_synthetic_summary.csv"
-    table_path = output_dir / "e4_synthetic_alpha_summary.csv"
-    plot_path = output_dir / "e4_synthetic.png"
-    metadata_path = output_dir / "e4_metadata.json"
-
-    runs.to_csv(runs_path, index=False)
-    summary.to_csv(summary_path, index=False)
-    table.to_csv(table_path, index=False)
-    plot_results(summary, plot_path)
-
-    used = [synthetic_path(d, s) for d in DATASETS for s in seeds]
-    metadata = {
-        "experiment": "E4 – độ nhạy theo bandwidth (phần 1: dữ liệu giả lập)",
-        "datasets": DATASETS,
-        "seeds": seeds,
-        "alphas": alphas_to_run,
-        "bandwidth": f"h = alpha × h0, h0 = meanshift.estimate_bandwidth(X, quantile={QUANTILE})",
-        "meanshift": "MeanShiftCustom(flat, kdtree, bin_seeding=True)",
-        "standardization": "StandardScaler riêng cho từng (bộ, seed)",
-        "timing": "time.perf_counter quanh fit, 3 lần, lấy trung vị",
-        "best_alpha": "alpha có ARI trung bình cao nhất trên chính các seed đã chạy (cận trên, dùng nhãn thật)",
-        "safe_range": f"các alpha có ARI trung bình >= {SAFE_RATIO} × ARI tốt nhất của bộ đó",
-        "input_sha256": {
-            str(p.relative_to(ROOT).as_posix()): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in used
-        },
-        "versions": {
-            "python": sys.version.split()[0],
-            "numpy": np.__version__,
-            "pandas": pd.__version__,
-            "scipy": scipy.__version__,
-            "scikit_learn": sklearn.__version__,
-        },
-    }
-    metadata_path.write_text(
-        json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-
-    print("\n===== TÓM TẮT E4 =====")
-    print(f"Số lần chạy: {len(runs)}")
-    print(f"Kết quả chi tiết: {runs_path}")
-    print(f"Kết quả tổng hợp: {summary_path}")
-    print(f"Bảng alpha theo từng bộ: {table_path}")
-    print(f"Biểu đồ: {plot_path}")
-    print()
-    print(table[[
-        "dataset", "best_alpha", "best_ari", "default_ari",
-        "safe_alpha_min", "safe_alpha_max", "default_in_safe",
-    ]].round(3).to_string(index=False))
+    print(f"=> A dùng cho E5: {best_path.name}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="E4: Khảo sát độ nhạy của Mean Shift theo bandwidth."
-    )
-    parser.add_argument(
-        "--part",
-        choices=["synthetic", "isic", "all"],
-        default="all",
-        help="Phần cần chạy: synthetic (dữ liệu giả), isic (ảnh da), all (cả hai, mặc định).",
-    )
-    parser.add_argument(
-        "--seeds",
-        type=int,
-        default=10,
-        help="Phần synthetic: số seed chạy cho mỗi dataset (mặc định: 10).",
+        description="E4 phần 2: độ nhạy của Mean-Shift 3D Lab theo bandwidth trên ISIC tune."
     )
     parser.add_argument(
         "--quick",
         action="store_true",
-        help=f"Phần isic: chỉ chạy {QUICK_IMAGES} ảnh đầu, ghi kết quả ra thư mục tạm.",
+        help=f"Chỉ chạy {QUICK_IMAGES} ảnh đầu, ghi kết quả ra thư mục tạm.",
     )
-    args = parser.parse_args()
-
-    if args.seeds < 1 or args.seeds > 10:
-        parser.error("--seeds phải nằm trong khoảng từ 1 đến 10.")
-
-    if args.part in ("synthetic", "all"):
-        run_synthetic(DEFAULT_SEEDS[:args.seeds])
-    if args.part in ("isic", "all"):
-        run_isic(quick=args.quick)
+    run_isic(quick=parser.parse_args().quick)
 
 
 if __name__ == "__main__":

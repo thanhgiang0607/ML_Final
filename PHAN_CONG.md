@@ -74,7 +74,7 @@ core.py       MeanShiftCustom(bandwidth=None, kernel="flat", neighbor_search="kd
 | **E** | **E1** – Đối chiếu sklearn (làm nốt từ giai đoạn 1) | RQ1      | `experiments/e1_compare_sklearn.py`, `experiments/common.py`                                     | `data/synthetic/` (5 bộ × 10 seed)                 | `results/e1/`        | `e1-compare`                    |
 | **E** | **E2** – So với K-Means, DBSCAN, GMM                | RQ2      | `experiments/e2_compare_algorithms.py`                                                           | `data/synthetic/` (5 bộ × 10 seed)                 | `results/e2/`        | `e2-algorithms`                 |
 | **C** | **E3** – Tốc độ & bộ nhớ                            | RQ3      | `experiments/e3_runtime.py`                                                                      | Giả lập sinh riêng trong script (n = 500 → 50.000) | `results/e3/`        | `e3-runtime`                    |
-| **D** | **E4** – Độ nhạy theo h                             | RQ4      | `experiments/e4_bandwidth.py`                                                                    | `data/synthetic/` + ISIC tune (100 ảnh)            | `results/e4/`        | `e4-bandwidth`                  |
+| **D** | **E4** – Độ nhạy theo h                             | RQ4      | `experiments/e4_bandwidth.py`, `experiments/e4_isic.py`                                          | `data/synthetic/` + ISIC tune (100 ảnh)            | `results/e4/`        | `e4-bandwidth`, `e4-isic`       |
 | **A** | **E5** – Phân đoạn tổn thương da                    | RQ5      | `experiments/isic_utils.py`, `experiments/e5_isic_segmentation.py`                               | ISIC tune (100) + ISIC test (200)                  | `results/e5/`        | `isic-utils`, `e5-isic`         |
 | **B** | **E6** – Ablation + hình quỹ đạo + baseline cho E5  | RQ3, RQ5 | `experiments/e6_ablation.py`, `experiments/fig_trajectories.py`, `experiments/isic_baselines.py` | `data/synthetic/` + ISIC tune                      | `results/e6/`        | `e6-ablation`, `isic-baselines` |
 
@@ -278,9 +278,9 @@ for image_id in load_split("tune"):
 
 **Phần 2 – ISIC tune** (tuần 4–5, sau khi `isic_utils.py` merge)
 
-- [ ] 100 ảnh tune, đặc trưng 3D Lab (`isic_utils`), Mean-Shift `bin_seeding=True`.
-- [ ] h ∈ {2, 4, 6, 8, 10, 12, 16, 20} (đơn vị Lab) + h = `estimate_bandwidth` của từng ảnh.
-- [ ] Mỗi (ảnh, h) ghi: Dice, IoU, số cụm, thời gian. Tìm h cho Dice trung bình cao nhất → **gửi A dùng cho E5 (Mean-Shift 3D Lab)**.
+- [x] 100 ảnh tune, đặc trưng 3D Lab (`isic_utils`), Mean-Shift `bin_seeding=True`.
+- [x] h ∈ {2, 4, 6, 8, 10, 12, 16, 20} (đơn vị Lab) + h = `estimate_bandwidth` của từng ảnh.
+- [x] Mỗi (ảnh, h) ghi: Dice, IoU, số cụm, thời gian. Tìm h cho Dice trung bình cao nhất → **gửi A dùng cho E5 (Mean-Shift 3D Lab)**.
 
 
 | Đầu ra                             | Nội dung                                                                               |
