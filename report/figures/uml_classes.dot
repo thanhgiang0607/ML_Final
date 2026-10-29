@@ -1,0 +1,132 @@
+// Sơ đồ lớp UML của package meanshift.
+// Vẽ lại: dot -Tpng -Gdpi=200 report/figures/uml_classes.dot -o report/figures/uml_classes.png
+digraph UML {
+  graph [rankdir=BT, fontname="Arial", nodesep=0.5, ranksep=0.75, bgcolor="white", pad=0.3];
+  node  [shape=plain, fontname="Arial", fontsize=11];
+  edge  [fontname="Arial", fontsize=10];
+
+  BaseClusterer [label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="4" bgcolor="#F2F2F2">
+      <tr><td bgcolor="#D9D9D9"><b>BaseClusterer</b></td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        + get_params() : dict<br/>
+        + set_params(**params) : self<br/>
+        + <i>fit(X)</i> : self<br/>
+        + fit_predict(X) : ndarray<br/>
+        # _check_is_fitted()<br/>
+        + __repr__() : str
+      </td></tr>
+    </table>>];
+
+  MeanShiftCustom [label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="4" bgcolor="#EAF1FB">
+      <tr><td bgcolor="#BDD7EE"><b>MeanShiftCustom</b></td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        + bandwidth : float | None<br/>
+        + kernel : str | Kernel<br/>
+        + neighbor_search : str | NeighborSearch<br/>
+        + seeds, bin_seeding, min_bin_freq<br/>
+        + cluster_all, max_iter, tol, merge_radius<br/>
+        + record_trajectories : bool
+      </td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        <i>Sau fit:</i> cluster_centers_, labels_, intensities_,<br/>
+        bandwidth_, n_iter_, seed_n_iter_, trajectories_
+      </td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        + fit(X) : self<br/>
+        + predict(X) : ndarray<br/>
+        - _init_seeds(X) : ndarray<br/>
+        - _shift_seeds(X, seeds) : (modes, intensities, n_iter)<br/>
+        - _merge_modes(modes, intensities) : (centers, counts)<br/>
+        - _assign_labels(X, centers, cluster_all) : ndarray
+      </td></tr>
+    </table>>];
+
+  Kernel [label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="4" bgcolor="#FFF5E6">
+      <tr><td bgcolor="#F8CBAD">«abstract»<br/><b><i>Kernel</i></b></td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">+ name : str</td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        + <i>support(h)</i> : float<br/>
+        + <i>weights(sq_dist, h)</i> : ndarray
+      </td></tr>
+    </table>>];
+
+  FlatKernel [label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="4" bgcolor="#FFF5E6">
+      <tr><td bgcolor="#F8CBAD"><b>FlatKernel</b></td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        + support(h) = h<br/>
+        + weights(...) = 1
+      </td></tr>
+    </table>>];
+
+  GaussianKernel [label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="4" bgcolor="#FFF5E6">
+      <tr><td bgcolor="#F8CBAD"><b>GaussianKernel</b></td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">+ cutoff : float = 3.0</td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        + support(h) = cutoff·h<br/>
+        + weights(d², h) = exp(−d² / 2h²)
+      </td></tr>
+    </table>>];
+
+  NeighborSearch [label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="4" bgcolor="#EEF7EA">
+      <tr><td bgcolor="#C5E0B4">«abstract»<br/><b><i>NeighborSearch</i></b></td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">+ name : str<br/>+ X_ : ndarray</td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        + fit(X) : self<br/>
+        + <i>query_radius(points, r)</i> : list[(idx, sq_dist)]
+      </td></tr>
+    </table>>];
+
+  BruteForceSearch [label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="4" bgcolor="#EEF7EA">
+      <tr><td bgcolor="#C5E0B4"><b>BruteForceSearch</b></td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">+ chunk_size : int = 512</td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">+ query_radius(points, r)</td></tr>
+    </table>>];
+
+  KDTreeSearch [label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="4" bgcolor="#EEF7EA">
+      <tr><td bgcolor="#C5E0B4"><b>KDTreeSearch</b></td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">+ tree_ : scipy.spatial.cKDTree</td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        + fit(X) : self<br/>
+        + query_radius(points, r)
+      </td></tr>
+    </table>>];
+
+  Utils [label=<
+    <table border="1" cellborder="0" cellspacing="0" cellpadding="4" bgcolor="#F7F7F7" style="dashed">
+      <tr><td bgcolor="#E7E6E6">«module functions»</td></tr>
+      <tr><td align="left" balign="left" border="1" sides="T">
+        make_kernel(kernel, gaussian_cutoff) : Kernel<br/>
+        make_neighbor_search(name) : NeighborSearch<br/>
+        estimate_bandwidth(X, quantile=0.3) : float<br/>
+        get_bin_seeds(X, bin_size, min_bin_freq) : ndarray<br/>
+        check_array(X) : ndarray
+      </td></tr>
+    </table>>];
+
+  // Kế thừa
+  MeanShiftCustom -> BaseClusterer [arrowhead=onormal, arrowsize=1.2];
+  FlatKernel      -> Kernel        [arrowhead=onormal, arrowsize=1.2];
+  GaussianKernel  -> Kernel        [arrowhead=onormal, arrowsize=1.2];
+  BruteForceSearch -> NeighborSearch [arrowhead=onormal, arrowsize=1.2];
+  KDTreeSearch     -> NeighborSearch [arrowhead=onormal, arrowsize=1.2];
+
+  // Hợp thành: MeanShiftCustom giữ 1 Kernel (_kernel) và 1 NeighborSearch (_search)
+  Kernel         -> MeanShiftCustom [arrowhead=diamond, arrowsize=1.2,
+                                     taillabel="_kernel  1", labeldistance=3, labelangle=-45];
+  NeighborSearch -> MeanShiftCustom [arrowhead=diamond, arrowsize=1.2,
+                                     taillabel="1  _search", labeldistance=3, labelangle=45];
+
+  // Phụ thuộc
+  MeanShiftCustom -> Utils [style=dashed, arrowhead=vee, label=" «use»"];
+
+  { rank=same; Kernel; NeighborSearch; }
+  { rank=same; FlatKernel; GaussianKernel; BruteForceSearch; KDTreeSearch; }
+}

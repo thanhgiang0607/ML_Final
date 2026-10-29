@@ -1,0 +1,79 @@
+// Sơ đồ luồng thực thi MeanShiftCustom.fit(X).
+// Vẽ lại: dot -Tpng -Gdpi=200 report/figures/flow_fit.dot -o report/figures/flow_fit.png
+digraph FIT {
+  graph [rankdir=TB, fontname="Arial", nodesep=0.45, ranksep=0.4, bgcolor="white", pad=0.3, newrank=true];
+  node  [fontname="Arial", fontsize=11, style="filled", fillcolor="#EAF1FB", shape=box, margin="0.15,0.07"];
+  edge  [fontname="Arial", fontsize=10, arrowsize=0.8];
+
+  start  [label="fit(X)", shape=ellipse, fillcolor="#D9D9D9"];
+  check  [label="X = check_array(X)\n(float64, 2D, không rỗng, không NaN/inf)"];
+  q_bw   [label="bandwidth\nlà None?", shape=diamond, fillcolor="#FFF2CC"];
+  est    [label="h = estimate_bandwidth(X)"];
+  given  [label="h = bandwidth"];
+  q_h    [label="h ≤ 0?", shape=diamond, fillcolor="#FFF2CC"];
+  err1   [label="ValueError", shape=box, style="filled,rounded", fillcolor="#F4CCCC"];
+  build  [label="_kernel = make_kernel(kernel)\n_search = make_neighbor_search(neighbor_search).fit(X)"];
+
+  subgraph cluster_seed {
+    label="① _init_seeds(X)"; labeljust="r"; fontsize=11; style="rounded,dashed"; color="#7F7F7F";
+    q_seed [label="seeds\nđược truyền?", shape=diamond, fillcolor="#FFF2CC"];
+    q_bin  [label="bin_seeding?", shape=diamond, fillcolor="#FFF2CC"];
+    s_user [label="seeds của\nngười dùng"];
+    s_bin  [label="get_bin_seeds(X, h,\nmin_bin_freq)"];
+    s_all  [label="seeds = X\n(mọi điểm)"];
+  }
+
+  subgraph cluster_shift {
+    label="② _shift_seeds(X, seeds)\ndịch chuyển theo lô các seed còn active"; labeljust="r"; labelloc="b"; fontsize=11;
+    style="rounded,dashed"; color="#7F7F7F";
+    init   [label="means = seeds; active = mọi seed\nr = _kernel.support(h)"];
+    q_act  [label="còn seed\nactive?", shape=diamond, fillcolor="#FFF2CC"];
+    query  [label="_search.query_radius(means[active], r)\n→ (idx, sq_dist) cho từng seed"];
+    q_nb   [label="seed có\nláng giềng?", shape=diamond, fillcolor="#FFF2CC"];
+    drop   [label="intensity = 0\n(bỏ seed)"];
+    move   [label="w = _kernel.weights(sq_dist, h)\nm_mới = Σ wᵢ·xᵢ / Σ wᵢ\nintensity = #{điểm cách m ≤ h}"];
+    q_conv [label="‖m_mới − m‖ ≤ tol·h\nhoặc n_iter = max_iter?", shape=diamond, fillcolor="#FFF2CC"];
+    done   [label="seed hội tụ\n(rời khỏi active)"];
+    keep   [label="n_iter += 1\n(giữ trong active)"];
+    upd    [label="active = các seed được giữ lại\n(hết lô)"];
+  }
+
+  q_found [label="có seed nào\nintensity > 0?", shape=diamond, fillcolor="#FFF2CC"];
+  err2    [label="ValueError", shape=box, style="filled,rounded", fillcolor="#F4CCCC"];
+  merge   [label="③ _merge_modes\nsắp mode theo (intensity, toạ độ) giảm dần;\nbỏ mode cách mode mạnh hơn ≤ merge_radius (mặc định h)\n→ cluster_centers_, intensities_"];
+  assign  [label="④ _assign_labels\nmỗi điểm → tâm gần nhất (cKDTree);\ncluster_all=False và khoảng cách > h → nhãn −1\n→ labels_"];
+  end_    [label="return self", shape=ellipse, fillcolor="#D9D9D9"];
+
+  start -> check -> q_bw;
+  q_bw -> est   [label=" có"];
+  q_bw -> given [label=" không"];
+  est -> q_h; given -> q_h;
+  q_h -> err1  [label=" có"];
+  q_h -> build [label=" không"];
+  build -> q_seed;
+  q_seed -> s_user [label=" có"];
+  q_seed -> q_bin  [label=" không"];
+  q_bin -> s_bin [label=" có"];
+  q_bin -> s_all [label=" không"];
+  s_user -> init; s_bin -> init; s_all -> init;
+  init -> q_act;
+  q_act -> query [label=" có"];
+  query -> q_nb;
+  q_nb -> drop [label=" không"];
+  q_nb -> move [label=" có"];
+  move -> q_conv;
+  q_conv -> done [label=" có"];
+  q_conv -> keep [label=" không"];
+  drop -> upd; done -> upd; keep -> upd;
+  upd -> q_act [constraint=false, color="#2F5597", fontcolor="#2F5597", label=" vòng lặp tiếp"];
+  q_act -> q_found [label=" không"];
+  q_found -> err2  [label=" không"];
+  q_found -> merge [label=" có"];
+  merge -> assign -> end_;
+
+  { rank=same; est; given; }
+  { rank=same; q_h; err1; }
+  { rank=same; drop; move; }
+  { rank=same; done; keep; }
+  { rank=same; q_found; err2; }
+}
