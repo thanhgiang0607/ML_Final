@@ -302,28 +302,28 @@ for image_id in load_split("tune"):
 
 **Bước 1 –** `experiments/isic_utils.py` (merge **đầu tuần 3**, B và D dùng chung)
 
-- [ ] `load_split(name) -> list[id]` đọc `data/splits/isic_tune.txt` / `isic_test.txt`
-- [ ] `load_image(id) -> (ảnh RGB, mask)`: thu nhỏ cạnh dài về 128 px (mask thu nhỏ cùng cỡ, nearest)
-- [ ] `to_lab(rgb)`: đổi RGB → Lab (thêm `scikit-image` vào `requirements.txt`, ghi trong PR)
-- [ ] `features(img, mode, hs=None, hr=None)`: `"rgb3"` = (R, G, B); `"lab3"` = (L, a, b); `"lab5"` = (x/hs, y/hs, L/hr, a/hr, b/hr)
-- [ ] `labels_to_mask(labels, img)`: quy tắc chung cho **mọi** phương pháp — bỏ cụm phủ phần lớn viền ảnh, cụm nằm chủ yếu trên viền (góc tối ống kính) và cụm nhỏ hơn 1% ảnh → chọn cụm tối nhất (L trung bình nhỏ nhất) → lấp lỗ (`scipy.ndimage.binary_fill_holes`) → giữ vùng liền lớn nhất (`scipy.ndimage.label`)
-- [ ] `dice(pred, gt)`, `iou(pred, gt)`
-- [ ] Test nhanh trên 3–5 ảnh, lưu hình kiểm tra `results/e5/check_utils.png`
+- [x] `load_split(name) -> list[id]` đọc `data/splits/isic_tune.txt` / `isic_test.txt`
+- [x] `load_image(id) -> (ảnh RGB, mask)`: thu nhỏ cạnh dài về 128 px (mask thu nhỏ cùng cỡ, nearest)
+- [x] `to_lab(rgb)`: đổi RGB → Lab (thêm `scikit-image` vào `requirements.txt`, ghi trong PR)
+- [x] `features(img, mode, hs=None, hr=None)`: `"rgb3"` = (R, G, B); `"lab3"` = (L, a, b); `"lab5"` = (x/hs, y/hs, L/hr, a/hr, b/hr)
+- [x] `labels_to_mask(labels, img)`: quy tắc chung cho **mọi** phương pháp — bỏ cụm phủ phần lớn viền ảnh, cụm nằm chủ yếu trên viền (góc tối ống kính) và cụm nhỏ hơn 1% ảnh → chọn cụm tối nhất (L trung bình nhỏ nhất) → lấp lỗ (`scipy.ndimage.binary_fill_holes`) → giữ vùng liền lớn nhất (`scipy.ndimage.label`)
+- [x] `dice(pred, gt)`, `iou(pred, gt)`
+- [x] Test nhanh trên 3–5 ảnh, lưu hình kiểm tra `results/e5/check_utils.png`
 
 **Bước 2 – Chỉnh tham số trên 100 ảnh tune**
 
-- [ ] Mean-Shift 3D RGB, 3D Lab: lưới h (lấy kết quả từ D cho 3D Lab).
-- [ ] Mean-Shift 5D Lab: lưới hs ∈ {8, 16, 32}, hr ∈ {4, 8, 12} (bandwidth = 1 sau khi chia tỷ lệ).
-- [ ] Baseline (của B): Otsu kênh L, K-Means k = 2, GMM k = 2 — không cần chỉnh.
-- [ ] Giữ bộ tham số có Dice trung bình cao nhất cho mỗi phương pháp.
+- [x] Mean-Shift 3D RGB, 3D Lab: lưới h (lấy kết quả từ D cho 3D Lab).
+- [x] Mean-Shift 5D Lab: lưới hs ∈ {8, 16, 32}, hr ∈ {4, 8, 12} (đã mở rộng thành hs ∈ {8, 16, 32, 64}, hr ∈ {4, 8, 12, 16, 20} vì tốt nhất nằm ở mép lưới) (bandwidth = 1 sau khi chia tỷ lệ).
+- [x] Baseline (của B): Otsu kênh L, K-Means k = 2, GMM k = 2 — không cần chỉnh.
+- [x] Giữ bộ tham số có Dice trung bình cao nhất cho mỗi phương pháp.
 
 **Bước 3 – Chấm trên 200 ảnh test (chạy 1 lần duy nhất)**
 
-- [ ] 6 phương pháp: Otsu, K-Means, GMM, MS 3D RGB, MS 3D Lab, MS 5D Lab.
-- [ ] Đo Dice, IoU, thời gian/ảnh.
-- [ ] Wilcoxon (`scipy.stats.wilcoxon`) giữa Mean-Shift tốt nhất và từng phương pháp còn lại.
-- [ ] Chạy thêm sklearn `MeanShift` với cùng tham số trên ~20 ảnh để xem mask giống/khác bản tự viết.
-- [ ] Phân tích lỗi: xem ảnh tốt nhất, trung vị, tệ nhất; xếp nhóm nguyên nhân (lông, viền đen ống kính, tổn thương nhạt màu, nhiều màu).
+- [x] 6 phương pháp: Otsu, K-Means, GMM, MS 3D RGB, MS 3D Lab, MS 5D Lab.
+- [x] Đo Dice, IoU, thời gian/ảnh.
+- [x] Wilcoxon (`scipy.stats.wilcoxon`) giữa Mean-Shift tốt nhất và từng phương pháp còn lại.
+- [x] Chạy thêm sklearn `MeanShift` với cùng tham số trên ~20 ảnh để xem mask giống/khác bản tự viết.
+- [x] Phân tích lỗi: xem ảnh tốt nhất, trung vị, tệ nhất; xếp nhóm nguyên nhân (lông, viền đen ống kính, tổn thương nhạt màu, nhiều màu).
 
 
 | Đầu ra                           | Nội dung                                                             |
@@ -349,9 +349,9 @@ for image_id in load_split("tune"):
 
 **Bước 1 –** `experiments/isic_baselines.py` (merge **đầu tuần 3**, A dùng cho E5)
 
-- [ ] `otsu_labels(img)`: Otsu trên kênh L
-- [ ] `kmeans_labels(feat, k=2)`, `gmm_labels(feat, k=2)` (`random_state=0`)
-- [ ] Trả về nhãn cùng dạng với Mean-Shift để đưa chung vào `labels_to_mask` của A.
+- [x] `otsu_labels(img)`: Otsu trên kênh L
+- [x] `kmeans_labels(feat, k=2)`, `gmm_labels(feat, k=2)` (`random_state=0`)
+- [x] Trả về nhãn cùng dạng với Mean-Shift để đưa chung vào `labels_to_mask` của A.
 
 **Bước 2 – Ablation trên dữ liệu giả lập** (5 bộ × 10 seed, h = h₀)
 

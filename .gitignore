@@ -16,3 +16,7 @@ results/**
 !results/**/*.png
 !results/**/env.txt
 !results/**/best_h_*.json
+!results/e5/e5_best_params.json
+!results/e5/e5_wilcoxon.csv
+!results/e5/e5_vs_sklearn.csv
+!results/e5/e5_failure_groups.csv
