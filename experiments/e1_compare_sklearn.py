@@ -38,7 +38,6 @@ SEARCHES = ["brute", "kdtree"]
 
 
 def _center_metrics(a, b, bandwidth):
-    """Matched-pair errors only; report extra centers separately (no penalty)."""
     na, nb = len(a), len(b)
     if not na or not nb:
         return {"matched_centers": 0, "unmatched_custom_centers": na,
@@ -49,7 +48,7 @@ def _center_metrics(a, b, bandwidth):
     rows, cols = linear_sum_assignment(cost)
     distances = cost[rows, cols]
     unmatched = abs(na - nb)
-    # Explicitly report unmatched count; matched-pair errors are not inflated or hidden.
+    # Báo cáo số phần tử không ghép cặp, giữ nguyên tính khách quan cho sai số của các cặp đã ghép
     return {"matched_centers": len(distances), "unmatched_custom_centers": max(0, na - nb),
             "unmatched_sklearn_centers": max(0, nb - na),
             "center_error_max": float(distances.max()) if len(distances) else None,
@@ -150,7 +149,7 @@ def run(seeds=10):
     fig.savefig(OUT / "e1_examples.png", dpi=160)
     plt.close(fig)
 
-    # Full-support Gaussian KDE with the custom finite-cutoff Gaussian trajectory.
+    # hàm Gaussian nhưng bóp ngắn lại trong một phạm vi nhất định
     X, _ = load_synthetic("blobs", 0)
     h_diag = 0.5 * estimate_bandwidth(X, quantile=0.3)
     gx, gy = np.meshgrid(np.linspace(X[:, 0].min()-0.5, X[:, 0].max()+0.5, 100),
